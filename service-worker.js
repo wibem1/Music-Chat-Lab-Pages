@@ -1,13 +1,13 @@
-const CACHE_NAME = "music-chat-lab-v0-4-20";
+const CACHE_NAME = "music-chat-lab-v0-4-21";
 const APP_SHELL = [
-  "./styles.css?v=0.4.20",
-  "./app.js?v=0.4.20",
-  "./music-file-processing.js?v=0.4.20",
-  "./engine14-output.js?v=0.4.20",
-  "./concept-approval.js?v=0.4.20",
-  "./android-download-fix.js?v=0.4.20",
-  "./manifest.webmanifest?v=0.4.20",
-  "./icon.svg?v=0.4.20"
+  "./styles.css?v=0.4.21",
+  "./app.js?v=0.4.21",
+  "./music-file-processing.js?v=0.4.21",
+  "./engine14-output.js?v=0.4.21",
+  "./concept-approval.js?v=0.4.21",
+  "./android-download-fix.js?v=0.4.21",
+  "./manifest.webmanifest?v=0.4.21",
+  "./icon.svg?v=0.4.21"
 ];
 self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL)));self.skipWaiting();});
 self.addEventListener("activate",event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)))));self.clients.claim();});
