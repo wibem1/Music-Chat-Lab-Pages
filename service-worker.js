@@ -1,4 +1,4 @@
-const CACHE_NAME = "music-chat-lab-v0-4-8";
+const CACHE_NAME = "music-chat-lab-v0-4-9";
 const APP_SHELL = [
   "./",
   "./index.html",
