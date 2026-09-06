@@ -1,5 +1,5 @@
 (() => {
-  // v0.4.14 — Claude/Engine-14: proposal first, composition only after approval.
+  // v0.4.15 — Claude/Engine-14: short proposal first; reuse the latest musical source from this chat for follow-up compositions.
   const wrappedFetch = window.fetch.bind(window);
   const STORE = 'music-chat-lab.pending-compositions.v1';
   const SYSTEM_PREFIX = `Du bist ein Kompositions- und Produktionsassistent für MIDI.\nErfinde selbständige, geschlossene Musik nach dem Auftrag des Nutzers. Achte auf Stimmführung, Dynamik (Velocity 1-127), Rhythmik und Artikulation.`;
@@ -11,6 +11,7 @@
   function save(x){localStorage.setItem(STORE,JSON.stringify(x))}
   function id(){return Math.random().toString(36).slice(2,9)}
   function extract(text){const sources=[];let m;sourceRe.lastIndex=0;while((m=sourceRe.exec(text))){try{sources.push({name:JSON.parse(m[1]),score:JSON.parse(m[2])})}catch{}}sourceRe.lastIndex=0;const task=String(text||'').replace(/\n\n--- DATEIANHÄNGE ---\n?/g,'\n').replace(sourceRe,'').trim();return{task,sources}}
+  function latestSources(messages,skipLastUser=false){let skipped=!skipLastUser;for(let i=messages.length-1;i>=0;i--){const m=messages[i];if(m.role!=='user'||typeof m.content!=='string')continue;if(!skipped){skipped=true;continue}const found=extract(m.content).sources;if(found.length)return found}return[]}
   function assignment(task,sources){let a=`Auftrag:\n${task}`;if(sources.length===1)a+=`\n\nVORHANDENES MATERIAL (${sources[0].name}):\n${JSON.stringify(sources[0].score)}`;else sources.forEach((s,i)=>a+=`\n\nVORHANDENES MATERIAL ${i+1} (${s.name}):\n${JSON.stringify(s.score)}`);return a}
   function xhr(url,headers,body){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('POST',url,true);Object.entries(headers||{}).forEach(([k,v])=>x.setRequestHeader(k,v));x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch{};if(x.status>=200&&x.status<300)resolve(d);else reject(new Error(d?.error?.message||`API-Fehler ${x.status}`))};x.onerror=()=>reject(new Error('Failed to fetch'));x.send(JSON.stringify(body))})}
   async function claude(url,headers,model,system,user){return xhr(url,headers,{model,max_tokens:32000,output_config:{effort:'medium'},system,messages:[{role:'user',content:user}]})}
@@ -18,6 +19,7 @@
   function response(text,model){return new Response(JSON.stringify({id:'mcl-proposal',type:'message',role:'assistant',model,content:[{type:'text',text}],stop_reason:'end_turn'}),{status:200,headers:{'content-type':'application/json'}})}
   function markerFrom(messages){for(let i=messages.length-1;i>=0;i--){if(messages[i].role!=='assistant')continue;const m=String(messages[i].content||'').match(/\[MCL-VORSCHLAG:([a-z0-9]+)\]/i);if(m)return m[1]}return null}
   function visibleProposal(pid,concept){return `Kompositionsvorschlag:\n\n${concept}\n\nWenn du damit einverstanden bist, antworte einfach mit „Ja“ oder „Mach das“. Änderungswünsche kannst du stattdessen direkt schreiben.\n\n[MCL-VORSCHLAG:${pid}]`}
+  const shortIdea = `Formuliere einen kurzen musikalischen Gedanken/Impuls in höchstens drei kurzen Sätzen. Beschreibe nur die wesentliche kompositorische Idee, keinen detaillierten Ablauf oder technischen Bauplan.`;
   window.fetch=async function(input,init={}){
     const url=typeof input==='string'?input:input?.url||'';
     if(!url.includes('api.anthropic.com/v1/messages')||typeof init.body!=='string')return wrappedFetch(input,init);
@@ -31,12 +33,14 @@
           const compPrompt=`${TECHNICAL_PROMPT}\n\nAUFTRAG:\n${p.assignment}\n\nDEIN KONZEPT:\n${p.concept}\n\nGib jetzt die fertige JSON-Partitur aus.`;
           const d=await claude(url,init.headers,body.model,SYSTEM_PREFIX,compPrompt);delete pending[pendingId];save(pending);return response(textOf(d),body.model);
         }
-        const revise=`Überarbeite den folgenden musikalischen Gedanken/Impuls entsprechend dem Änderungswunsch des Nutzers. Formuliere wieder nur einen kurzen musikalischen Gedanken/Impuls.\n\nAUFTRAG:\n${p.assignment}\n\nBISHERIGER IMPULS:\n${p.concept}\n\nÄNDERUNGSWUNSCH:\n${change}`;
+        const revise=`Überarbeite den folgenden musikalischen Gedanken/Impuls entsprechend dem Änderungswunsch des Nutzers. ${shortIdea}\n\nAUFTRAG:\n${p.assignment}\n\nBISHERIGER IMPULS:\n${p.concept}\n\nÄNDERUNGSWUNSCH:\n${change}`;
         const d=await claude(url,init.headers,body.model,SYSTEM_PREFIX,revise), concept=textOf(d);p.concept=concept;pending[pendingId]=p;save(pending);return response(visibleProposal(pendingId,concept),body.model);
       }
       if(!compRe.test(last.content))return wrappedFetch(input,init);
-      const {task,sources}=extract(last.content), a=assignment(task,sources);
-      const conceptPrompt=`Formuliere einen kurzen musikalischen Gedanken/Impuls für folgenden Auftrag:\n\n${a}`;
+      let {task,sources}=extract(last.content);
+      if(!sources.length)sources=latestSources(msgs,true);
+      const a=assignment(task,sources);
+      const conceptPrompt=`${shortIdea}\n\nAUFTRAG:\n${a}`;
       const d=await claude(url,init.headers,body.model,SYSTEM_PREFIX,conceptPrompt), concept=textOf(d), pid=id();
       pending[pid]={assignment:a,concept,createdAt:Date.now()};save(pending);return response(visibleProposal(pid,concept),body.model);
     }catch(e){return new Response(JSON.stringify({error:{message:e?.message||String(e)}}),{status:500,headers:{'content-type':'application/json'}})}
