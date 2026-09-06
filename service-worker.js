@@ -1,14 +1,12 @@
-const CACHE_NAME = "music-chat-lab-v0-4-10";
+const CACHE_NAME = "music-chat-lab-v0-4-11";
 const APP_SHELL = [
-  "./",
-  "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./music-file-processing.js",
-  "./engine14-output.js",
-  "./android-download-fix.js",
-  "./manifest.webmanifest",
-  "./icon.svg"
+  "./styles.css?v=0.4.11",
+  "./app.js?v=0.4.11",
+  "./music-file-processing.js?v=0.4.11",
+  "./engine14-output.js?v=0.4.11",
+  "./android-download-fix.js?v=0.4.11",
+  "./manifest.webmanifest?v=0.4.11",
+  "./icon.svg?v=0.4.11"
 ];
 
 self.addEventListener("install", event => {
@@ -27,5 +25,21 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
-  event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
+
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match("./index.html") || caches.match("./"))
+    );
+    return;
+  }
+
+  event.respondWith(
+    fetch(event.request)
+      .then(response => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
+  );
 });
