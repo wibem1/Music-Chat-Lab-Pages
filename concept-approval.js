@@ -1,5 +1,5 @@
 (() => {
-  // v0.4.19 — Claude + Gemini: proposal includes planned length and tempo from source.
+  // v0.4.20 — Claude + Gemini: proposal flow, source length/tempo, Gemini timeout + JSON mode.
   const wrappedFetch = window.fetch.bind(window);
   const STORE = 'music-chat-lab.pending-compositions.v1';
   const DIAG = 'music-chat-lab.last-diagnostic.v1';
@@ -18,12 +18,12 @@
   function sourceInfo(s){const tr=Array.isArray(s?.score?.tr)?s.score.tr:[];const notes=tr.reduce((n,t)=>n+(Array.isArray(t.nt)?t.nt.length:0),0);let end=0;tr.forEach(t=>(t.nt||[]).forEach(n=>{if(Array.isArray(n))end=Math.max(end,(Number(n[0])||0)+(Number(n[1])||0))}));const ts=s?.score?.ts||{};const bar=(Number(ts.n)||4)*(4/(Number(ts.d)||4));return{name:s.name,notes,beats:Number(end.toFixed(3)),bars:bar?Number((end/bar).toFixed(2)):null,bpm:s?.score?.bpm??null,meter:ts.n&&ts.d?`${ts.n}/${ts.d}`:null,key:s?.score?.k??null}}
   function sourceGuidance(sources){if(!sources.length)return'';const i=sourceInfo(sources[0]),parts=[];if(i.bars)parts.push(`Umfang der Vorlage: ${i.bars} Takte`);if(i.meter)parts.push(`Taktart der Vorlage: ${i.meter}`);if(i.bpm)parts.push(`Tempo der Vorlage: ${i.bpm} BPM`);return parts.length?`\n\nECKDATEN DER VORLAGE (als Ausgangspunkt, sofern der Nutzer nichts anderes verlangt):\n${parts.join('\n')}`:''}
   function assignment(task,sources){let a=`Auftrag:\n${task}${sourceGuidance(sources)}`;if(sources.length===1)a+=`\n\nVORHANDENES MATERIAL (${sources[0].name}):\n${JSON.stringify(sources[0].score)}`;else sources.forEach((s,i)=>a+=`\n\nVORHANDENES MATERIAL ${i+1} (${s.name}):\n${JSON.stringify(s.score)}`);return a}
-  function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'0.4.19',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
+  function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'0.4.20',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
   window.MCLDownloadDiagnostic=function(){const raw=localStorage.getItem(DIAG);if(!raw){alert('Noch keine Kompositionsdiagnose vorhanden.');return}const blob=new Blob([raw],{type:'application/json;charset=utf-8'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=`Music-Chat-Lab-Diagnose-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)};
 
-  function xhr(url,headers,body,provider){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('POST',url,true);Object.entries(headers||{}).forEach(([k,v])=>x.setRequestHeader(k,v));x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch{};if(x.status>=200&&x.status<300)resolve(d);else reject(new Error(d?.error?.message||`API-Fehler ${x.status}`))};x.onerror=()=>reject(new Error(provider==='google'?'Netzwerkzugriff zur Google-API fehlgeschlagen. Bitte Verbindung/VPN prüfen und erneut versuchen.':'Failed to fetch'));x.send(JSON.stringify(body))})}
+  function xhr(url,headers,body,provider){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('POST',url,true);x.timeout=180000;Object.entries(headers||{}).forEach(([k,v])=>x.setRequestHeader(k,v));x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch{};if(x.status>=200&&x.status<300)resolve(d);else reject(new Error(d?.error?.message||`API-Fehler ${x.status}`))};x.onerror=()=>reject(new Error(provider==='google'?'Netzwerkzugriff zur Google-API fehlgeschlagen. Bitte Verbindung/VPN prüfen und erneut versuchen.':'Failed to fetch'));x.ontimeout=()=>reject(new Error(provider==='google'?'Gemini hat die Komposition nach 3 Minuten nicht abgeschlossen. Die Anfrage wurde beendet.':'Die Anfrage hat zu lange gedauert und wurde beendet.'));x.send(JSON.stringify(body))})}
   async function claude(url,headers,model,system,user){return xhr(url,headers,{model,max_tokens:32000,output_config:{effort:'medium'},system,messages:[{role:'user',content:user}]},'anthropic')}
-  async function gemini(url,headers,system,user){return xhr(url,headers,{systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text:user}]}],generationConfig:{maxOutputTokens:32768}},'google')}
+  async function gemini(url,headers,system,user,wantJson=false){const generationConfig={maxOutputTokens:32768};if(wantJson)generationConfig.responseMimeType='application/json';return xhr(url,headers,{systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text:user}]}],generationConfig},'google')}
   function anthropicText(d){return(d.content||[]).filter(x=>x.type==='text').map(x=>x.text||'').join('').trim()}
   function googleText(d){return(d.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join('').trim()}
   function providerResponse(provider,text,model){if(provider==='google')return new Response(JSON.stringify({candidates:[{content:{role:'model',parts:[{text}]},finishReason:'STOP'}]}),{status:200,headers:{'content-type':'application/json'}});return new Response(JSON.stringify({id:'mcl-proposal',type:'message',role:'assistant',model,content:[{type:'text',text}],stop_reason:'end_turn'}),{status:200,headers:{'content-type':'application/json'}})}
@@ -31,7 +31,7 @@
   function visibleProposal(pid,concept){return `Kompositionsvorschlag:\n\n${concept}\n\nWenn du damit einverstanden bist, antworte einfach mit „Ja“ oder „Mach das“. Änderungswünsche kannst du stattdessen direkt schreiben.\n\n[MCL-VORSCHLAG:${pid}]`}
   function normalizeRequest(provider,body){if(provider==='anthropic')return(Array.isArray(body.messages)?body.messages:[]).filter(m=>typeof m.content==='string').map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}));return(Array.isArray(body.contents)?body.contents:[]).map(m=>({role:m.role==='model'?'assistant':'user',content:(m.parts||[]).map(p=>p.text||'').join('')}))}
   function modelFrom(provider,body,url){if(provider==='anthropic')return body.model||'';const m=String(url).match(/\/models\/([^/:]+):generateContent/);return m?decodeURIComponent(m[1]):''}
-  async function direct(provider,url,headers,model,prompt){if(provider==='google'){const d=await gemini(url,headers,SYSTEM_PREFIX,prompt);return googleText(d)}const d=await claude(url,headers,model,SYSTEM_PREFIX,prompt);return anthropicText(d)}
+  async function direct(provider,url,headers,model,prompt,wantJson=false){if(provider==='google'){const d=await gemini(url,headers,SYSTEM_PREFIX,prompt,wantJson);return googleText(d)}const d=await claude(url,headers,model,SYSTEM_PREFIX,prompt);return anthropicText(d)}
 
   window.fetch=async function(input,init={}){
     const url=typeof input==='string'?input:input?.url||'';
@@ -46,15 +46,15 @@
         if(yesRe.test(change)){
           const compPrompt=`${TECHNICAL_PROMPT}\n\nAUFTRAG:\n${p.assignment}\n\nDEIN KONZEPT:\n${p.concept}\n\nGib jetzt die fertige JSON-Partitur aus.`;
           diagnostic('final-composition-call',{provider,model,userConfirmation:change,task:p.task,sourceOrigin:p.sourceOrigin,sources:p.sourceInfo,concept:p.concept,assignment:p.assignment,finalPrompt:compPrompt});
-          const text=await direct(provider,url,init.headers,model,compPrompt);delete pending[pendingId];save(pending);return providerResponse(provider,text,model);
+          const text=await direct(provider,url,init.headers,model,compPrompt,true);delete pending[pendingId];save(pending);return providerResponse(provider,text,model);
         }
         const revise=`Überarbeite den folgenden musikalischen Gedanken/Impuls entsprechend dem Änderungswunsch des Nutzers. ${shortIdea}\n\nAUFTRAG:\n${p.assignment}\n\nBISHERIGER IMPULS:\n${p.concept}\n\nÄNDERUNGSWUNSCH:\n${change}`;
-        const concept=await direct(provider,url,init.headers,model,revise);p.concept=concept;pending[pendingId]=p;save(pending);return providerResponse(provider,visibleProposal(pendingId,concept),model);
+        const concept=await direct(provider,url,init.headers,model,revise,false);p.concept=concept;pending[pendingId]=p;save(pending);return providerResponse(provider,visibleProposal(pendingId,concept),model);
       }
       if(!compRe.test(last.content))return wrappedFetch(input,init);
       let {task,sources}=extract(last.content),sourceOrigin='current-message';
       if(!sources.length){sources=latestSources(msgs,true);sourceOrigin=sources.length?'reused-from-chat':'none'}
-      const a=assignment(task,sources),conceptPrompt=`${shortIdea}\n\nAUFTRAG:\n${a}`,concept=await direct(provider,url,init.headers,model,conceptPrompt),pid=id(),info=sources.map(sourceInfo);
+      const a=assignment(task,sources),conceptPrompt=`${shortIdea}\n\nAUFTRAG:\n${a}`,concept=await direct(provider,url,init.headers,model,conceptPrompt,false),pid=id(),info=sources.map(sourceInfo);
       pending[pid]={assignment:a,concept,task,sourceOrigin,sourceInfo:info,createdAt:Date.now()};save(pending);diagnostic('proposal-created',{provider,model,task,sourceOrigin,sources:info,concept,assignment:a});return providerResponse(provider,visibleProposal(pid,concept),model);
     }catch(e){const msg=e?.message||String(e);if(provider==='google')return new Response(JSON.stringify({error:{message:msg}}),{status:502,headers:{'content-type':'application/json'}});return new Response(JSON.stringify({error:{message:msg}}),{status:500,headers:{'content-type':'application/json'}})}
   };
