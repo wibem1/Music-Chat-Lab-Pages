@@ -1,12 +1,13 @@
 (() => {
-  // v0.4.23 — Claude + Gemini: robust proposal state; Gemini final composition uses the normal generateContent path.
+  // v0.4.24 — keep generated scores in the source history so multi-source tasks really receive all required music.
   const wrappedFetch = window.fetch.bind(window);
   const STORE = 'music-chat-lab.pending-compositions.v1';
   const DIAG = 'music-chat-lab.last-diagnostic.v1';
   const SYSTEM_PREFIX = `Du bist ein Kompositions- und Produktionsassistent für MIDI.\nErfinde selbständige, geschlossene Musik nach dem Auftrag des Nutzers. Achte auf Stimmführung, Dynamik (Velocity 1-127), Rhythmik und Artikulation. Bei der Bearbeitung vorhandenen Materials sollen dessen musikalische Identität, Form und Umfang angemessen berücksichtigt werden, sofern der Auftrag nichts anderes verlangt.`;
   const TECHNICAL_PROMPT = `NOTATION UND AUSGABE:\n- "d" = Notierter Wert in Viertelnoten-Beats (0.125, 0.25, 0.333333, 0.5, 0.666667, 0.75, 1, 1.5, 2, 3, 4, 6, 8).\n- "g" = Gate/Klingdauer als Faktor (z.B. 0.95 = normal, 0.5 = staccato, 1.05 = legato).\n- "st" = System (0=Standard, 1=Rechte Hand / oberes System, 2=Linke Hand / unteres System).\n- Format: JSON mit folgender Struktur:\n{\n  "ti": "Titel",\n  "bpm": 96,\n  "ts": {"n": 4, "d": 4},\n  "k": "e minor",\n  "sm": "Kurze Zusammenfassung",\n  "tr": [{"nm":"Piano","ch":0,"pg":0,"nt":[[0.0,1.0,60,80,1]],"ct":[[0.0,64,0]]}]\n}\nnt-Array: [StartBeat, Dauer, Pitch, Velocity, Staff, Gate] (Gate ist optional, Standard 0.95).\nct-Array: [Beat, CC, Wert].\nGib ausschließlich valides JSON aus.`;
   const sourceRe = /\[MCL-ENGINE14-SCORE name=("(?:[^"\\]|\\.)*")\]\n([\s\S]*?)\n\[\/MCL-ENGINE14-SCORE\]/g;
-  const compRe = /(komponier|erzeug|erstelle|variier|variation|fortsetz|verlänger|verkürz|bearbeit|arrangier|orchestrier|transformier|neues\s+stück|neue\s+komposition|kurzfassung|füge[^\n]{0,100}(?:stück|komposition|variation))/i;
+  const compRe = /(komponier|erzeug|erstelle|variier|variation|fortsetz|verlänger|verkürz|bearbeit|arrangier|orchestrier|transformier|synthese|verschmelz|kombinier|neues\s+stück|neue\s+komposition|kurzfassung|füge[^\n]{0,100}(?:stück|komposition|variation))/i;
+  const multiRe = /(synthese|verschmelz|kombinier|verbind|aus\s+.+\s+und\s+.+|(?:original|vorlage).{0,100}\b(?:und|mit)\b.{0,100}(?:variation|fassung|version)|(?:variation|fassung|version).{0,100}\b(?:und|mit)\b.{0,100}(?:original|vorlage))/i;
   const yesRe = /^(ja|ja bitte|mach das|mache das|genau|einverstanden|okay|ok|los|bitte|so machen|ausführen|führe (das|ihn|sie) aus)[.!\s]*$/i;
   const shortIdea = `Formuliere einen kurzen musikalischen Gedanken/Impuls in höchstens drei kurzen Sätzen. Beschreibe nur die wesentliche kompositorische Idee, keinen detaillierten Ablauf oder technischen Bauplan. Nenne im Vorschlag ausdrücklich die geplante Länge in Takten und das geplante Tempo in BPM. Bei vorhandenem Material dienen dessen Umfang und Tempo als Ausgangspunkt; Abweichungen sind möglich, sollen aber im Vorschlag sichtbar sein.`;
 
@@ -14,11 +15,37 @@
   function save(x){localStorage.setItem(STORE,JSON.stringify(x))}
   function id(){return Math.random().toString(36).slice(2,9)}
   function extract(text){const sources=[];let m;sourceRe.lastIndex=0;while((m=sourceRe.exec(text))){try{sources.push({name:JSON.parse(m[1]),score:JSON.parse(m[2])})}catch{}}sourceRe.lastIndex=0;const task=String(text||'').replace(/\n\n--- DATEIANHÄNGE ---\n?/g,'\n').replace(sourceRe,'').trim();return{task,sources}}
-  function latestSources(messages,skipLastUser=false){let skipped=!skipLastUser;for(let i=messages.length-1;i>=0;i--){const m=messages[i];if(m.role!=='user'||typeof m.content!=='string')continue;if(!skipped){skipped=true;continue}const found=extract(m.content).sources;if(found.length)return found}return[]}
+  function scoreFromAssistant(text){
+    let s=String(text||'').trim();
+    if(!s||s.includes('[MCL-VORSCHLAG:'))return null;
+    const fence=s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);if(fence)s=fence[1].trim();
+    const first=s.indexOf('{'),last=s.lastIndexOf('}');if(first<0||last<=first)return null;
+    try{const score=JSON.parse(s.slice(first,last+1));if(!score||!Array.isArray(score.tr)||!score.tr.some(t=>Array.isArray(t.nt)))return null;return{name:String(score.ti||score.sm||'Erzeugte Komposition'),score}}catch{return null}
+  }
+  function sameSource(a,b){try{return JSON.stringify(a?.score)===JSON.stringify(b?.score)}catch{return false}}
+  function historySources(messages,skipLastUser=false){
+    const out=[];let skipped=!skipLastUser;
+    for(let i=messages.length-1;i>=0;i--){const m=messages[i];if(typeof m.content!=='string')continue;
+      if(m.role==='user'){
+        if(!skipped){skipped=true;continue}
+        const found=extract(m.content).sources;
+        for(let j=found.length-1;j>=0;j--)if(!out.some(x=>sameSource(x,found[j])))out.push(found[j]);
+      }else if(m.role==='assistant'){
+        const generated=scoreFromAssistant(m.content);if(generated&&!out.some(x=>sameSource(x,generated)))out.push(generated);
+      }
+    }
+    return out;
+  }
+  function latestSources(messages,skipLastUser=false){const all=historySources(messages,skipLastUser);return all.length?[all[0]]:[]}
+  function sourcesForTask(messages,task,skipLastUser=false){
+    const all=historySources(messages,skipLastUser);if(!all.length)return[];
+    if(multiRe.test(task))return all.slice(0,Math.min(4,all.length)).reverse();
+    return [all[0]];
+  }
   function sourceInfo(s){const tr=Array.isArray(s?.score?.tr)?s.score.tr:[];const notes=tr.reduce((n,t)=>n+(Array.isArray(t.nt)?t.nt.length:0),0);let end=0;tr.forEach(t=>(t.nt||[]).forEach(n=>{if(Array.isArray(n))end=Math.max(end,(Number(n[0])||0)+(Number(n[1])||0))}));const ts=s?.score?.ts||{};const bar=(Number(ts.n)||4)*(4/(Number(ts.d)||4));return{name:s.name,notes,beats:Number(end.toFixed(3)),bars:bar?Number((end/bar).toFixed(2)):null,bpm:s?.score?.bpm??null,meter:ts.n&&ts.d?`${ts.n}/${ts.d}`:null,key:s?.score?.k??null}}
   function sourceGuidance(sources){if(!sources.length)return'';const i=sourceInfo(sources[0]),parts=[];if(i.bars)parts.push(`Umfang der Vorlage: ${i.bars} Takte`);if(i.meter)parts.push(`Taktart der Vorlage: ${i.meter}`);if(i.bpm)parts.push(`Tempo der Vorlage: ${i.bpm} BPM`);return parts.length?`\n\nECKDATEN DER VORLAGE (als Ausgangspunkt, sofern der Nutzer nichts anderes verlangt):\n${parts.join('\n')}`:''}
   function assignment(task,sources){let a=`Auftrag:\n${task}${sourceGuidance(sources)}`;if(sources.length===1)a+=`\n\nVORHANDENES MATERIAL (${sources[0].name}):\n${JSON.stringify(sources[0].score)}`;else sources.forEach((s,i)=>a+=`\n\nVORHANDENES MATERIAL ${i+1} (${s.name}):\n${JSON.stringify(s.score)}`);return a}
-  function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'0.4.23',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
+  function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'0.4.24',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
   window.MCLDownloadDiagnostic=function(){const raw=localStorage.getItem(DIAG);if(!raw){alert('Noch keine Kompositionsdiagnose vorhanden.');return}const blob=new Blob([raw],{type:'application/json;charset=utf-8'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=`Music-Chat-Lab-Diagnose-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)};
 
   function xhr(url,headers,body,provider){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('POST',url,true);x.timeout=180000;Object.entries(headers||{}).forEach(([k,v])=>x.setRequestHeader(k,v));x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch{};if(x.status>=200&&x.status<300)resolve(d);else reject(new Error(d?.error?.message||`API-Fehler ${x.status}`))};x.onerror=()=>reject(new Error(provider==='google'?'Netzwerkzugriff zur Google-API fehlgeschlagen. Bitte Verbindung/VPN prüfen und erneut versuchen.':'Failed to fetch'));x.ontimeout=()=>reject(new Error(provider==='google'?'Gemini hat die Komposition nach 3 Minuten nicht abgeschlossen. Die Anfrage wurde beendet.':'Die Anfrage hat zu lange gedauert und wurde beendet.'));x.send(JSON.stringify(body))})}
@@ -54,7 +81,10 @@
       }
       if(!compRe.test(last.content))return wrappedFetch(input,init);
       let {task,sources}=extract(last.content),sourceOrigin='current-message';
-      if(!sources.length){sources=latestSources(msgs,true);sourceOrigin=sources.length?'reused-from-chat':'none'}
+      if(!sources.length){sources=sourcesForTask(msgs,task,true);sourceOrigin=sources.length?(multiRe.test(task)?'multiple-from-chat':'reused-from-chat'):'none'}
+      else if(multiRe.test(task)){
+        const older=historySources(msgs,true);for(const s of older)if(!sources.some(x=>sameSource(x,s)))sources.push(s);sourceOrigin=sources.length>1?'current-plus-chat':'current-message';
+      }
       const a=assignment(task,sources),conceptPrompt=`${shortIdea}\n\nAUFTRAG:\n${a}`,concept=await direct(provider,url,init.headers,model,conceptPrompt),pid=id(),info=sources.map(sourceInfo);
       pending[pid]={assignment:a,concept,task,sourceOrigin,sourceInfo:info,createdAt:Date.now()};save(pending);diagnostic('proposal-created',{provider,model,task,sourceOrigin,sources:info,concept,assignment:a});return providerResponse(provider,visibleProposal(pid,concept),model);
     }catch(e){const msg=e?.message||String(e);if(provider==='google')return new Response(JSON.stringify({error:{message:msg}}),{status:502,headers:{'content-type':'application/json'}});return new Response(JSON.stringify({error:{message:msg}}),{status:500,headers:{'content-type':'application/json'}})}
