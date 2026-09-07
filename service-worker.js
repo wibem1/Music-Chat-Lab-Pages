@@ -1,3 +1,13 @@
-const CACHE_NAME = "music-chat-lab-v1-0-4";
-const APP_SHELL = ["./styles.css?v=1.0.4","./app.js?v=1.0.4","./music-file-processing.js?v=1.0.4","./engine14-output.js?v=1.0.4","./concept-approval.js?v=1.0.4","./request-control.js?v=1.0.4","./chat-delete.js?v=1.0.4","./chat-titles.js?v=1.0.4","./android-download-fix.js?v=1.0.4","./midi-player.js?v=1.0.4","./midi-load-fix.js?v=1.0.4","./apk-playback-v11.js?v=1.0.4","./midi-memory.js?v=1.0.4","./manifest.webmanifest?v=1.0.4","./icon.svg?v=1.0.4"];
-self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL)));self.skipWaiting();});self.addEventListener("activate",event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)))));self.clients.claim();});self.addEventListener("fetch",event=>{if(event.request.method!=="GET")return;if(event.request.mode==="navigate"){event.respondWith(fetch(event.request).catch(()=>caches.match("./index.html")||caches.match("./")));return;}event.respondWith(fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match(event.request)));});
+const CACHE_NAME = "music-chat-lab-v1-0-5";
+const APP_SHELL = ["./","./index.html","./styles.css?v=1.0.5","./app.js?v=1.0.5","./music-file-processing.js?v=1.0.5","./engine14-output.js?v=1.0.5","./concept-approval.js?v=1.0.5","./request-control.js?v=1.0.5","./chat-delete.js?v=1.0.5","./chat-titles.js?v=1.0.5","./android-download-fix.js?v=1.0.5","./midi-player.js?v=1.0.5","./midi-load-fix.js?v=1.0.5","./apk-playback-v11.js?v=1.0.5","./midi-memory.js?v=1.0.5","./update-manager.js?v=1.0.5","./manifest.webmanifest?v=1.0.5","./icon.svg?v=1.0.5"];
+self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL)));self.skipWaiting();});
+self.addEventListener("activate",event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)))));self.clients.claim();});
+self.addEventListener("fetch",event=>{
+  if(event.request.method!=="GET")return;
+  if(event.request.mode==="navigate"){
+    const fresh=new Request(event.request,{cache:"no-store"});
+    event.respondWith(fetch(fresh).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put("./index.html",copy));return response;}).catch(()=>caches.match("./index.html")||caches.match("./")));
+    return;
+  }
+  event.respondWith(fetch(new Request(event.request,{cache:"no-store"})).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match(event.request)));
+});
