@@ -1,16 +1,16 @@
-const CACHE_NAME = "music-chat-lab-v0-4-33";
+const CACHE_NAME = "music-chat-lab-v0-4-34";
 const APP_SHELL = [
-  "./styles.css?v=0.4.33",
-  "./app.js?v=0.4.33",
-  "./music-file-processing.js?v=0.4.33",
-  "./engine14-output.js?v=0.4.33",
-  "./concept-approval.js?v=0.4.33",
-  "./request-control.js?v=0.4.33",
-  "./chat-delete.js?v=0.4.33",
-  "./android-download-fix.js?v=0.4.33",
-  "./midi-player.js?v=0.4.33",
-  "./manifest.webmanifest?v=0.4.33",
-  "./icon.svg?v=0.4.33"
+  "./styles.css?v=0.4.34",
+  "./app.js?v=0.4.34",
+  "./music-file-processing.js?v=0.4.34",
+  "./engine14-output.js?v=0.4.34",
+  "./concept-approval.js?v=0.4.34",
+  "./request-control.js?v=0.4.34",
+  "./chat-delete.js?v=0.4.34",
+  "./android-download-fix.js?v=0.4.34",
+  "./midi-player.js?v=0.4.34",
+  "./manifest.webmanifest?v=0.4.34",
+  "./icon.svg?v=0.4.34"
 ];
 self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL)));self.skipWaiting();});
 self.addEventListener("activate",event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)))));self.clients.claim();});
