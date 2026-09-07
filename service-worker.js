@@ -1,5 +1,5 @@
-const CACHE_NAME = "music-chat-lab-v1-0-6";
-const APP_SHELL = ["./","./index.html","./styles.css?v=1.0.6","./app.js?v=1.0.6","./music-file-processing.js?v=1.0.6","./engine14-output.js?v=1.0.6","./concept-approval.js?v=1.0.6","./request-control.js?v=1.0.6","./chat-delete.js?v=1.0.6","./chat-titles.js?v=1.0.6","./android-download-fix.js?v=1.0.6","./midi-player.js?v=1.0.6","./midi-load-fix.js?v=1.0.6","./apk-playback-v11.js?v=1.0.6","./midi-memory.js?v=1.0.6","./update-manager.js?v=1.0.6","./manifest.webmanifest?v=1.0.6","./icon.svg?v=1.0.6"];
+const CACHE_NAME = "music-chat-lab-v1-0-7";
+const APP_SHELL = ["./","./index.html","./styles.css?v=1.0.7","./app.js?v=1.0.7","./music-file-processing.js?v=1.0.7","./engine14-output.js?v=1.0.7","./concept-approval.js?v=1.0.7","./request-control.js?v=1.0.7","./chat-delete.js?v=1.0.7","./chat-titles.js?v=1.0.7","./android-download-fix.js?v=1.0.7","./midi-player.js?v=1.0.7","./midi-load-fix.js?v=1.0.7","./apk-playback-v11.js?v=1.0.7","./midi-memory.js?v=1.0.7","./midi-slot-delete.js?v=1.0.7","./update-manager.js?v=1.0.7","./manifest.webmanifest?v=1.0.7","./icon.svg?v=1.0.7"];
 self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL)));self.skipWaiting();});
 self.addEventListener("activate",event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)))));self.clients.claim();});
 self.addEventListener("fetch",event=>{
