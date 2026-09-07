@@ -24,11 +24,14 @@ function askDelete(n,item){return new Promise(resolve=>{
 });}
 async function removeSlot(n,ask=true){
   const api=window.MCLMidiSlots;if(!api?.all||!api?.restoreState)return;
-  const item=api.all().find(x=>x.slot===n);if(!item)return;
+  const before=api.all(),item=before.find(x=>x.slot===n);if(!item)return;
   if(ask&&!(await askDelete(n,item)))return;
+  const activeButton=document.querySelector('.mcl-midi-slot.active');
+  const oldActive=activeButton?Number(activeButton.dataset.slot)+1:0;
   const dead=tombstones();if(item.kind==='KI'){const s=sig(item);if(s)dead.add(s);saveTombstones(dead)}
-  const keep=api.all().filter(x=>x.slot!==n).map(x=>({slot:x.slot,name:x.name,kind:x.kind,score:x.score}));
-  const active=keep.length?keep[0].slot:0;
+  const keep=before.filter(x=>x.slot!==n).map(x=>({slot:x.slot,name:x.name,kind:x.kind,score:x.score}));
+  let active=oldActive!==n&&keep.some(x=>x.slot===oldActive)?oldActive:0;
+  if(!active&&keep.length){const after=keep.find(x=>x.slot>n),beforeItem=[...keep].reverse().find(x=>x.slot<n);active=(after||beforeItem||keep[0]).slot}
   api.restoreState(keep,active);
   window.dispatchEvent(new CustomEvent('mcl-midi-slots-changed'));
   const st=document.getElementById('mainMidiStatus');if(st)st.textContent=`Speicherplatz ${n} wurde gelöscht.`;
@@ -38,13 +41,16 @@ function purgeDeleted(){
   const dead=tombstones();if(!dead.size)return;
   const all=api.all(),keep=all.filter(x=>!dead.has(sig(x)));
   if(keep.length===all.length)return;
-  api.restoreState(keep,keep[0]?.slot||0);
+  const activeButton=document.querySelector('.mcl-midi-slot.active');
+  const oldActive=activeButton?Number(activeButton.dataset.slot)+1:0;
+  const active=keep.some(x=>x.slot===oldActive)?oldActive:(keep[0]?.slot||0);
+  api.restoreState(keep,active);
   window.dispatchEvent(new CustomEvent('mcl-midi-slots-changed'));
 }
 function bind(){
   document.querySelectorAll('.mcl-midi-slot').forEach((b,i)=>{
     let timer=null,long=false;
-    const start=()=>{if(!window.MCLMidiSlots?.has?.(i+1))return;long=false;timer=setTimeout(()=>{long=true;removeSlot(i+1,true)},650)};
+    const start=()=>{if(!window.MCLMidiSlots?.has?.(i+1))return;long=false;timer=setTimeout(()=>{timer=null;long=true;removeSlot(i+1,true)},650)};
     const cancel=()=>{if(timer){clearTimeout(timer);timer=null}};
     b.addEventListener('pointerdown',start);
     b.addEventListener('pointerup',cancel);
