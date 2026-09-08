@@ -60,11 +60,11 @@ function currentScoreRecord(){
   return r;
 }
 function makeDocument(){
-  const rec=currentScoreRecord();if(!rec?.score)throw new Error('Kein markiertes Stück auf dem Arbeitstisch.');
+  const rec=activeWorkspaceRecord();if(!rec?.score)throw new Error('Kein markiertes Stück auf dem Arbeitstisch.');
   const score=clone(rec.score),previous=loadedDocument?clone(loadedDocument):{};
   const sameScore=!!loadedDocument&&JSON.stringify(loadedDocument.score)===JSON.stringify(score);
   const pm=activeProviderModel(),changedFromLoaded=!!loadedDocument&&!sameScore;
-  const doc={...previous,format:FORMAT,version:VERSION,savedAt:appleDateNow(),title:String(score.ti||previous.title||'Komposition'),score,
+  const doc={...previous,format:FORMAT,version:VERSION,savedAt:appleDateNow(),title:String(rec.workspaceItem?.name||score.ti||previous.title||'Komposition'),score,
     concept:String(score.sm||previous.concept||''),provider:pm.provider,model:pm.provider?pm.model:null,
     measures:scoreMeasures(score),meter:`${score.ts?.n||4}/${score.ts?.d||4}`,tempo:String(score.bpm||96),musicalKey:String(score.k||''),
     ensemble:ensemble(score),assignment:latestAssignment()||String(previous.assignment||'')};
@@ -85,10 +85,10 @@ function putIntoMidiWorkspace(doc){
   try{
     const items=api.all().map(x=>clone(x)),sig=JSON.stringify(doc.score);
     const existing=items.find(x=>JSON.stringify(x.score)===sig);
-    if(existing){api.restoreState(items,existing.slot);return;}
+    if(existing){api.restoreState(items,existing.slot);setTimeout(renderBadge,0);return;}
     const used=new Set(items.map(x=>Number(x.slot)));let slot=0;for(let i=1;i<=6;i++)if(!used.has(i)){slot=i;break;}
     if(!slot){setNote('CLAB geöffnet. Alle sechs MIDI-Speicherplätze sind belegt; der Score bleibt trotzdem als CLAB-Kontext aktiv.');return;}
-    items.push({slot,name:doc.title||doc.score?.ti||'CLAB-Projekt',score:clone(doc.score),kind:'CLAB'});api.restoreState(items,slot);
+    items.push({slot,name:doc.title||doc.score?.ti||'CLAB-Projekt',score:clone(doc.score),kind:'CLAB'});api.restoreState(items,slot);setTimeout(renderBadge,0);
   }catch(_){}
 }
 function applyDocument(doc,fileName=''){
@@ -101,25 +101,35 @@ async function openFile(file){try{applyDocument(JSON.parse(await file.text()),fi
 function projectContext(){
   if(!loadedDocument)return'';
   const rec=currentScoreRecord();if(!rec?.score)return'';
-  const score=rec.score,name=score.ti||loadedDocument.title||'CLAB-Projekt';
+  const score=rec.score,name=rec.workspaceItem?.name||score.ti||loadedDocument.title||'CLAB-Projekt';
   return `\n\n[MCL-ENGINE14-SCORE name=${JSON.stringify(name)}]\n${JSON.stringify(score)}\n[/MCL-ENGINE14-SCORE]`;
 }
 function installContext(){
   const prior=window.MCLMidiWorkspaceContext;
   window.MCLMidiWorkspaceContext=function(){let base='';try{base=typeof prior==='function'?prior():'';}catch(_){}return String(base||'')+projectContext();};
 }
-function renderBadge(){const b=document.getElementById('clabProjectBadge');if(!b)return;const rec=currentScoreRecord();b.textContent=loadedDocument?`CLAB: ${rec?.score?.ti||loadedDocument.title||'Projekt'}`:'CLAB: kein Projekt geöffnet';}
+function renderBadge(){
+  const b=document.getElementById('clabProjectBadge');if(!b)return;
+  const active=activeWorkspaceRecord();
+  if(active){const name=active.workspaceItem?.name||active.score?.ti||`Speicher ${active.slot}`;b.textContent=`CLAB: ${name}`;return;}
+  b.textContent=loadedDocument?`CLAB: ${loadedDocument.title||loadedDocument.score?.ti||'Projekt'}`:'CLAB: kein Stück gewählt';
+}
+function watchWorkspaceSelection(){
+  const slots=document.getElementById('midiSlots');if(!slots)return;
+  slots.addEventListener('click',()=>setTimeout(renderBadge,0));
+  new MutationObserver(renderBadge).observe(slots,{subtree:true,attributes:true,attributeFilter:['class'],childList:true});
+}
 function installUi(){
   if(document.getElementById('clabOpenBtn'))return;
   const composer=document.querySelector('.composer'),box=document.querySelector('.composer-box');if(!composer||!box)return;
   const bar=document.createElement('div');bar.className='clab-toolbar';bar.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0';
   bar.innerHTML='<button type="button" class="secondary-button" id="clabOpenBtn">CLAB öffnen</button><button type="button" class="secondary-button" id="clabSaveBtn">CLAB speichern</button><span id="clabProjectBadge" style="font-size:12px;opacity:.75"></span><input id="clabFileInput" type="file" accept=".clab,application/json" hidden>';
-  composer.insertBefore(bar,box);renderBadge();
+  composer.insertBefore(bar,box);renderBadge();watchWorkspaceSelection();
   const input=document.getElementById('clabFileInput');document.getElementById('clabOpenBtn').onclick=()=>{input.value='';input.click();};
   input.onchange=()=>{const f=input.files?.[0];if(f)openFile(f);};
   document.getElementById('clabSaveBtn').onclick=()=>{try{const d=makeDocument();download(JSON.stringify(d,null,2),safeName(d.title)+'.clab');setNote(`CLAB gespeichert: ${d.title}. Gespeichert wurde die aktuell markierte Komposition auf dem Arbeitstisch.`);}catch(e){setNote(e?.message||String(e));}};
 }
-window.MCLCLAB={FORMAT,VERSION,applyDocument,makeDocument,getLoadedDocument:()=>clone(loadedDocument),getCurrentScore:()=>clone(currentScoreRecord()?.score||null)};
+window.MCLCLAB={FORMAT,VERSION,applyDocument,makeDocument,getLoadedDocument:()=>clone(loadedDocument),getCurrentScore:()=>clone(activeWorkspaceRecord()?.score||null)};
 installContext();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installUi,{once:true});else installUi();
 })();
