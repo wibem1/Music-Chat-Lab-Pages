@@ -1,7 +1,7 @@
-const CACHE_NAME = "music-chat-lab-v1-1-5";
+const CACHE_NAME = "music-chat-lab-v1-1-6";
 const APP_SHELL = [
   "./","./index.html",
-  "./styles.css?v=1.0.20","./ui-fixes.css?v=1.0.20","./app.js?v=1.1.1","./usage-costs.js?v=1.1.4",
+  "./styles.css?v=1.0.20","./ui-fixes.css?v=1.0.20","./app.js?v=1.1.1","./composition-state-fix.js?v=1.1.6","./usage-costs.js?v=1.1.4",
   "./music-file-processing.js?v=1.0.20","./download-compat.js?v=1.0.20",
   "./api-usage.js?v=1.1.1","./composition-engine14.js?v=1.1.5","./concept-approval.js?v=1.0.26","./concept-openai.js?v=1.0.26",
   "./request-control.js?v=1.0.20","./midi-player.js?v=1.0.20","./midi-stop-reset.js?v=1.0.20",
@@ -10,7 +10,7 @@ const APP_SHELL = [
   "./clab-document-v1.js?v=1.1.3",
   "./chat-delete.js?v=1.0.20","./chat-titles.js?v=1.0.20",
   "./midi-memory.js?v=1.0.20","./midi-slot-delete.js?v=1.0.20",
-  "./midi-export.js?v=1.0.20","./ui-enhancements.js?v=1.1.5",
+  "./midi-export.js?v=1.0.20","./ui-enhancements.js?v=1.1.6",
   "./manifest.webmanifest?v=1.0.20","./icon.svg?v=1.0.20"
 ];
 self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL)));self.skipWaiting();});
