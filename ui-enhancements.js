@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const VERSION='1.1.5';
+const VERSION='1.1.6';
 const TABLET_BREAKPOINT=1180;
 const sidebar=document.getElementById('sidebar');
 const closeButton=document.getElementById('sidebarCloseButton');
