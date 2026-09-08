@@ -8,23 +8,24 @@ Die einzige aktive Entwicklungsquelle ist:
 
 `wibem1/Music-Chat-Lab`
 
-Aktueller freigegebener Spiegelstand:
+Aktueller freigegebener Stand:
 
-- Music Chat Lab **v1.0.15**
+- Music Chat Lab **v1.0.16**
 - Kompositionskern: **Engine Build 14**
+
+## Struktur
+
+Dieses Repository enthält bewusst **keine Kopie des Anwendungscodes mehr**.
+
+Der Pages-Workflow checkt bei jedem Deployment direkt `wibem1/Music-Chat-Lab` auf `main` aus und veröffentlicht diesen freigegebenen Laufzeitstand. Dadurch kann das Deployment-Repository nicht mehr unabhängig vom Source-Repository weiterentwickelt werden oder veralten.
+
+Im Repository selbst bleiben nur:
+
+- `.github/workflows/pages.yml`
+- diese Deployment-Dokumentation
 
 ## Regel
 
-In diesem Repository findet **keine eigenständige Funktionsentwicklung** statt.
-
-Erlaubt sind nur:
-
-- Pages-/Deployment-Konfiguration
-- README-/Deployment-Dokumentation
-- die freigegebenen App-Dateien aus `wibem1/Music-Chat-Lab`
-
-Nicht zulässig sind eigene Reparaturmodule, alternative Engines, abweichende Score-/CLAB-Formate oder Funktionsänderungen, die nicht zuerst im Source-Repository vorgenommen wurden.
-
-Der frühere Zustand, in dem Pages zeitweise neuer als das Source-Repository war, ist mit der Rückführung von v1.0.15 am 8. September 2026 beendet.
+In diesem Repository findet keine eigenständige Funktionsentwicklung statt. Änderungen am Produkt, an MIDI-/MusicXML-Semantik, Engine-Pfaden oder Dateiformaten werden ausschließlich zuerst im Source-Repository vorgenommen.
 
 Systemweite Architektur: `wibem1/Composer-Lab/SYSTEM-ARCHITECTURE.md`.
