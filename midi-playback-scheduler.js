@@ -8,9 +8,10 @@ function gmName(pg){pg=Math.max(0,Math.min(127,Number(pg)||0));return GM[pg]||'a
 async function loadInst(pg,ch){const key=ch===9?'drums':String(Math.max(0,Math.min(127,Number(pg)||0)));if(cache.has(key))return cache.get(key);if(typeof Soundfont==='undefined')throw new Error('SoundFont-Modul konnte nicht geladen werden.');const name=ch===9?'synth_drum':gmName(pg);const p=Soundfont.instrument(ensureAudio(),name,{soundfont:'FluidR3_GM',format:'mp3',destination:master});cache.set(key,p);try{return await p}catch(err){cache.delete(key);if(name!=='acoustic_grand_piano'){const f=Soundfont.instrument(ensureAudio(),'acoustic_grand_piano',{soundfont:'FluidR3_GM',format:'mp3',destination:master});cache.set(key,f);return await f}throw err}}
 function maxBeat(score){let m=0;(score?.tr||[]).forEach(t=>(t.nt||[]).forEach(n=>{const st=Number(n[0])||0,d=Number(n[1])||0,g=n.length>5?(Number(n[5])||.95):.95;m=Math.max(m,st+d*Math.max(.05,g))}));return m}
 function fmt(x){x=Math.max(0,Math.floor(x));return Math.floor(x/60)+':'+String(x%60).padStart(2,'0')}
-function clearLocal(){playToken++;if(timer){clearTimeout(timer);timer=0}if(raf){cancelAnimationFrame(raf);raf=0}cursors=[];playing=false;paused=false}
-function stop(update=true){clearLocal();cache.forEach(p=>Promise.resolve(p).then(inst=>{try{inst.stop()}catch(_){}}).catch(()=>{}));if(update)status('Gestoppt.')}
 function current(){const b=document.querySelector('.mcl-midi-slot.active');if(!b||!window.MCLMidiSlots)return null;const n=Number(b.dataset.slot)+1;return window.MCLMidiSlots.get([n])[0]||null}
+function resetPosition(){activeStart=0;baseTime=0;const item=current(),score=item?.score||null,bpm=Math.max(20,Math.min(300,Number(score?.bpm)||96)),spb=60/bpm,total=score?maxBeat(score)*spb:0;if($("mainMidiSeek"))$("mainMidiSeek").value='0';if($("mainMidiTime"))$("mainMidiTime").textContent=`0:00 / ${fmt(total)}`;}
+function clearLocal(){playToken++;if(timer){clearTimeout(timer);timer=0}if(raf){cancelAnimationFrame(raf);raf=0}cursors=[];playing=false;paused=false}
+function stop(update=true,reset=false){clearLocal();cache.forEach(p=>Promise.resolve(p).then(inst=>{try{inst.stop()}catch(_){}}).catch(()=>{}));if(reset)resetPosition();if(update)status('Gestoppt.')}
 async function play(score,fromBeat=0){if(!score||!Array.isArray(score.tr)||!score.tr.length){status('Noch keine Komposition zum Abspielen.');return}clearLocal();const my=playToken;cache.forEach(p=>Promise.resolve(p).then(inst=>{try{inst.stop()}catch(_){}}).catch(()=>{}));const ctx=ensureAudio();if(ctx.state==='suspended')await ctx.resume();activeStart=Math.max(0,Number(fromBeat)||0);activeMax=maxBeat(score);activeBpm=Math.max(20,Math.min(300,Number(score.bpm)||96));activeSpb=60/activeBpm;baseTime=ctx.currentTime+.12;const tracks=(score.tr||[]).filter(t=>Array.isArray(t.nt)&&t.nt.length);let ncount=0;for(const t of tracks)ncount+=t.nt.length;status(`Wiedergabe wird vorbereitet (${ncount} Noten) …`);
 const needed=new Map();for(const t of tracks){const ch=Math.max(0,Math.min(15,Number(t.ch)||0)),pg=Math.max(0,Math.min(127,Number(t.pg)||0)),key=ch===9?'drums':String(pg);if(!needed.has(key))needed.set(key,[pg,ch])}
 const instMap=new Map();for(const [key,[pg,ch]] of needed){if(my!==playToken)return;try{instMap.set(key,await loadInst(pg,ch))}catch(err){if(ch!==9&&pg!==0){try{instMap.set(key,await loadInst(0,0))}catch(_){throw err}}else throw err}await new Promise(r=>setTimeout(r,0))}if(my!==playToken)return;
@@ -22,8 +23,8 @@ async function pause(){if(!ac||!playing){status('Keine laufende Wiedergabe.');re
 function intercept(id,type,fn){document.addEventListener(type,e=>{if(e.target?.id!==id)return;e.preventDefault();e.stopImmediatePropagation();fn(e)},true)}
 intercept('mainMidiPlay','click',()=>{const item=current();if(!item){status('Bitte zuerst einen belegten Speicherplatz wählen.');return}const from=maxBeat(item.score)*(Number($("mainMidiSeek")?.value)||0)/1000;play(item.score,from).catch(err=>status('Player-Fehler: '+(err?.message||err)))});
 intercept('mainMidiPause','click',()=>pause().catch(err=>status('Player-Fehler: '+(err?.message||err))));
-intercept('mainMidiStop','click',()=>stop(true));
-intercept('mainMidiSeek','change',()=>{const item=current();if(!item)return;const from=maxBeat(item.score)*(Number($("mainMidiSeek")?.value)||0)/1000;play(item.score,from).catch(err=>status('Player-Fehler: '+(err?.message||err)))});
+intercept('mainMidiStop','click',()=>stop(true,true));
+intercept('mainMidiSeek','change',()=>{const item=current();if(!item)return;const from=maxBeat(item.score)*(Number($("mainMidiSeek").value)||0)/1000;play(item.score,from).catch(err=>status('Player-Fehler: '+(err?.message||err)))});
 intercept('mainMidiVolume','input',e=>{if(master)master.gain.value=Math.max(0,Math.min(1,Number(e.target.value)/100))});
-window.addEventListener('beforeunload',()=>stop(false));
+window.addEventListener('beforeunload',()=>stop(false,false));
 })();
