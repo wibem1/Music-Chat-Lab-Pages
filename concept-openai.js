@@ -1,5 +1,6 @@
 (()=>{
 'use strict';
+// MusicChatLab v1.0.23 — concept approval for OpenAI Responses API.
 const wrappedFetch=window.fetch.bind(window);
 const STORE='music-chat-lab.pending-openai-compositions.v1';
 const DIAG='music-chat-lab.last-diagnostic.v1';
@@ -15,14 +16,14 @@ function load(){try{return JSON.parse(localStorage.getItem(STORE))||{}}catch{ret
 function save(x){localStorage.setItem(STORE,JSON.stringify(x))}
 function id(){return Math.random().toString(36).slice(2,9)}
 function normalize(body){return(Array.isArray(body?.input)?body.input:[]).map(m=>({role:m.role==='assistant'?'assistant':'user',content:typeof m.content==='string'?m.content:(Array.isArray(m.content)?m.content.map(x=>x?.text||x?.input_text||x?.output_text||'').join(''):String(m.content||''))}))}
-function marker(messages){let i=-1;for(let n=messages.length-1;n>=0;n--){if(messages[n].role==='user'){i=n;break}}if(i<=0)return null;const p=messages[i-1];if(p?.role!=='assistant')return null;return String(p.content||'').match(/\[MCL-OPENAI-VORSCHLAG:([a-z0-9]+)\]/i)?.[1]||null}
+function marker(messages){let i=-1;for(let n=messages.length-1;n>=0;n--){if(messages[n].role==='user'){i=n;break}}if(i<=0)return null;const p=messages[i-1];if(p?.role!=='assistant')return null;return String(p.content||'').match(/\[MCL-(?:OPENAI-)?VORSCHLAG:([a-z0-9]+)\]/i)?.[1]||null}
 function extract(text){const sources=[];let m;sourceRe.lastIndex=0;while((m=sourceRe.exec(String(text||'')))){try{sources.push({name:JSON.parse(m[1]),score:JSON.parse(m[2])})}catch{}}sourceRe.lastIndex=0;const task=String(text||'').replace(sourceRe,'').replace(workspaceRe,'\n').replace(/\n\n--- DATEIANHÄNGE ---\n?/g,'\n').trim();return{task,sources}}
 function assignment(task,sources){let a=`Auftrag:\n${task}`;sources.forEach((s,i)=>a+=`\n\nVORHANDENES MATERIAL${sources.length>1?' '+(i+1):''} (${s.name}):\n${JSON.stringify(s.score)}`);return a}
-function visible(pid,concept){return `Kompositionsidee:\n\n${concept}\n\nDu kannst jetzt:\n• mit „Ja“ oder „Mach das“ bestätigen,\n• mit „Ablehnen“ verwerfen,\n• oder deinen Änderungswunsch direkt schreiben.\n\n[MCL-OPENAI-VORSCHLAG:${pid}]`}
+function visible(pid,concept){return `Kompositionsidee:\n\n${concept}\n\nDu kannst jetzt:\n• mit „Ja“ oder „Mach das“ bestätigen,\n• mit „Ablehnen“ verwerfen,\n• oder deinen Änderungswunsch direkt schreiben.\n\n[MCL-VORSCHLAG:${pid}]`}
 function proposalResponse(text,model){return new Response(JSON.stringify({id:'mcl-openai-proposal',object:'response',model,output_text:text,output:[{type:'message',role:'assistant',content:[{type:'output_text',text}]}]}),{status:200,headers:{'content-type':'application/json'}})}
 function outputText(d){if(typeof d?.output_text==='string')return d.output_text;return(d?.output||[]).flatMap(x=>x.content||[]).map(x=>x.text||'').join('\n').trim()}
 async function direct(url,headers,model,prompt){const h=new Headers(headers||{});const r=await wrappedFetch(url,{method:'POST',headers:h,body:JSON.stringify({model,input:[{role:'system',content:SYSTEM_PREFIX},{role:'user',content:prompt}],store:false})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||`OpenAI API-Fehler ${r.status}`);const t=outputText(d);if(!t)throw new Error('OpenAI hat keine Textantwort geliefert.');return t}
-function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'1.0.20',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
+function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'1.0.23',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
 window.fetch=async function(input,init={}){
  const url=typeof input==='string'?input:input?.url||'';
  if(!url.includes('api.openai.com/v1/responses')||typeof init.body!=='string')return wrappedFetch(input,init);
