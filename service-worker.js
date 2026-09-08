@@ -1,16 +1,17 @@
-const CACHE_NAME = "music-chat-lab-v1-0-17";
+const CACHE_NAME = "music-chat-lab-v1-0-18";
 const APP_SHELL = [
   "./","./index.html",
-  "./styles.css?v=1.0.17","./app.js?v=1.0.17",
-  "./music-file-processing.js?v=1.0.17","./download-compat.js?v=1.0.17",
-  "./composition-engine14.js?v=1.0.17","./concept-approval.js?v=1.0.17",
-  "./request-control.js?v=1.0.17","./midi-player.js?v=1.0.17",
-  "./midi-slot-restore.js?v=1.0.17","./midi-input-sync.js?v=1.0.17",
-  "./midi-playback-scheduler.js?v=1.0.17","./midi-context.js?v=1.0.17",
-  "./clab-document-v1.js?v=1.0.17",
-  "./chat-delete.js?v=1.0.17","./chat-titles.js?v=1.0.17",
-  "./midi-memory.js?v=1.0.17","./midi-slot-delete.js?v=1.0.17",
-  "./manifest.webmanifest?v=1.0.17","./icon.svg?v=1.0.17"
+  "./styles.css?v=1.0.18","./ui-fixes.css?v=1.0.18","./app.js?v=1.0.18",
+  "./music-file-processing.js?v=1.0.18","./download-compat.js?v=1.0.18",
+  "./composition-engine14.js?v=1.0.18","./concept-approval.js?v=1.0.18",
+  "./request-control.js?v=1.0.18","./midi-player.js?v=1.0.18",
+  "./midi-slot-restore.js?v=1.0.18","./midi-input-sync.js?v=1.0.18",
+  "./midi-playback-scheduler.js?v=1.0.18","./midi-context.js?v=1.0.18",
+  "./clab-document-v1.js?v=1.0.18",
+  "./chat-delete.js?v=1.0.18","./chat-titles.js?v=1.0.18",
+  "./midi-memory.js?v=1.0.18","./midi-slot-delete.js?v=1.0.18",
+  "./midi-export.js?v=1.0.18","./ui-enhancements.js?v=1.0.18",
+  "./manifest.webmanifest?v=1.0.18","./icon.svg?v=1.0.18"
 ];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL)));
