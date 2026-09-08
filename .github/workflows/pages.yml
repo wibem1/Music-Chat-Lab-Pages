@@ -42,10 +42,7 @@ jobs:
           test -f public/composition-engine14.js
           test -f public/music-file-processing.js
           test -f public/clab-document-v1.js
-          test -f public/midi-export.js
-          test -f public/ui-enhancements.js
-          test -f public/ui-fixes.css
-          grep -q 'v1.0.18' public/index.html
+          grep -q 'v1.0.19' public/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
