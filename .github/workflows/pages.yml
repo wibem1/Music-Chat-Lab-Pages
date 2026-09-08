@@ -30,13 +30,7 @@ jobs:
         shell: bash
         run: |
           mkdir public
-          rsync -a \
-            --exclude '.git/' \
-            --exclude '.github/' \
-            --exclude '.gitignore' \
-            --exclude 'README.md' \
-            --exclude 'LICENSE' \
-            ./ public/
+          rsync -a --exclude '.git/' --exclude '.github/' --exclude '.gitignore' --exclude 'README.md' --exclude 'LICENSE' ./ public/
           test -f public/index.html
           test -f public/service-worker.js
           test -f public/composition-engine14.js
@@ -44,7 +38,7 @@ jobs:
           test -f public/midi-stop-reset.js
           test -f public/music-file-processing.js
           test -f public/clab-document-v1.js
-          grep -q 'v1.0.20' public/index.html
+          grep -Fq 'data-app-version>v1.1.15<' public/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
