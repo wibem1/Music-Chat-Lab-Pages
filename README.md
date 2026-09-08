@@ -10,8 +10,9 @@ Die einzige aktive Entwicklungsquelle ist:
 
 Aktueller freigegebener Stand:
 
-- Music Chat Lab **v1.0.16**
+- Music Chat Lab **v1.0.17**
 - Kompositionskern: **Engine Build 14**
+- gemeinsames Projektformat: **CLAB v1**
 
 ## Struktur
 
