@@ -62,7 +62,7 @@
     const selected=nums.map(n=>sources[n-1]).filter(Boolean);
     return{concept:text.slice(m[0].length).trim(),selected,selection:nums}
   }
-  function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'1.0.25',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
+  function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'1.0.26',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
   window.MCLDownloadDiagnostic=function(){const raw=localStorage.getItem(DIAG);if(!raw){alert('Noch keine Kompositionsdiagnose vorhanden.');return}const blob=new Blob([raw],{type:'application/json;charset=utf-8'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=`Music-Chat-Lab-Diagnose-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)};
 
   function xhr(url,headers,body,provider){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('POST',url,true);x.timeout=180000;Object.entries(headers||{}).forEach(([k,v])=>x.setRequestHeader(k,v));x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch{};if(x.status>=200&&x.status<300)resolve(d);else reject(new Error(d?.error?.message||`API-Fehler ${x.status}`))};x.onerror=()=>reject(new Error(provider==='google'?'Netzwerkzugriff zur Google-API fehlgeschlagen. Bitte Verbindung/VPN prüfen und erneut versuchen.':'Failed to fetch'));x.ontimeout=()=>reject(new Error(provider==='google'?'Gemini hat die Komposition nach 3 Minuten nicht abgeschlossen. Die Anfrage wurde beendet.':'Die Anfrage hat zu lange gedauert und wurde beendet.'));x.send(JSON.stringify(body))})}
@@ -77,10 +77,10 @@
     const previous=[...msgs].reverse().find(m=>m.role==='assistant');
     const task=extract(latest?.content||'').task;
     const priorText=String(previous?.content||'').replace(/\[MCL-VORSCHLAG:[a-z0-9]+\]/ig,'').slice(-2500);
-    const choices=hasPending?'CONFIRM | REJECT | REVISE | DISCUSS':'COMPOSE | DISCUSS';
-    const prompt=`Ordne die aktuelle Nutzereingabe nach ihrer Bedeutung ein, nicht nach einzelnen Schlüsselwörtern.\n\nMögliche Ausgabe: ${choices}.\n\nRegeln:\n- COMPOSE: Der Nutzer möchte tatsächlich neue Musik erzeugen oder vorhandene Musik verändern, fortsetzen, variieren, arrangieren, synthetisieren oder sonst musikalisch bearbeiten lassen.\n- DISCUSS: Der Nutzer möchte sprechen, fragen, analysieren, beurteilen, vergleichen, erklären, kritisieren oder Ideen erörtern, ohne dass jetzt Musik erzeugt oder verändert werden soll. Ein musikalisches Wort wie „Synthese“, „Variation“ oder „Komposition“ allein bedeutet NICHT COMPOSE.\n- CONFIRM (nur bei offenem Vorschlag): Der Nutzer bestätigt, dass die vorgeschlagene Komposition jetzt ausgeführt werden soll.\n- REJECT (nur bei offenem Vorschlag): Der Nutzer verwirft oder stoppt den Vorschlag.\n- REVISE (nur bei offenem Vorschlag): Der Nutzer möchte die vorgeschlagene Kompositionsidee ändern, bevor Musik erzeugt wird.\n- Bei Mehrdeutigkeit wähle DISCUSS; dann kann die KI im normalen Gespräch nachfragen.\n\nVorherige KI-Antwort (gekürzt):\n${priorText}\n\nAktuelle Nutzereingabe:\n${task}\n\nAntworte ausschließlich mit genau einem der erlaubten Wörter.`;
+    const choices=hasPending?'CONFIRM | REJECT | REVISE | COMPOSE | DISCUSS':'COMPOSE | DISCUSS';
+    const prompt=`Ordne die aktuelle Nutzereingabe nach ihrer Bedeutung ein, nicht nach einzelnen Schlüsselwörtern.\n\nMögliche Ausgabe: ${choices}.\n\nRegeln:\n- COMPOSE: Der Nutzer möchte tatsächlich neue Musik erzeugen oder vorhandene Musik verändern, fortsetzen, variieren, arrangieren, synthetisieren oder sonst musikalisch bearbeiten lassen.\n- DISCUSS: Der Nutzer möchte sprechen, fragen, analysieren, beurteilen, vergleichen, erklären, kritisieren oder Ideen erörtern, ohne dass jetzt Musik erzeugt oder verändert werden soll. Ein musikalisches Wort wie „Synthese“, „Variation“ oder „Komposition“ allein bedeutet NICHT COMPOSE.\n- CONFIRM (nur bei offenem Vorschlag): Der Nutzer bestätigt, dass die vorgeschlagene Komposition jetzt ausgeführt werden soll.\n- REJECT (nur bei offenem Vorschlag): Der Nutzer verwirft oder stoppt den Vorschlag.\n- REVISE (nur bei offenem Vorschlag): Der Nutzer möchte die vorgeschlagene Kompositionsidee ändern, bevor Musik erzeugt wird.\n- COMPOSE bleibt auch bei offenem Vorschlag möglich: Wähle COMPOSE, wenn die aktuelle Nachricht einen neuen, eigenständigen Kompositionsauftrag erteilt, statt nur den offenen Vorschlag zu bestätigen oder zu überarbeiten.\n- Bei Mehrdeutigkeit wähle DISCUSS; dann kann die KI im normalen Gespräch nachfragen.\n\nVorherige KI-Antwort (gekürzt):\n${priorText}\n\nAktuelle Nutzereingabe:\n${task}\n\nAntworte ausschließlich mit genau einem der erlaubten Wörter.`;
     const raw=(await direct(provider,url,headers,model,prompt)).trim().toUpperCase();
-    const allowed=hasPending?['CONFIRM','REJECT','REVISE','DISCUSS']:['COMPOSE','DISCUSS'];
+    const allowed=hasPending?['CONFIRM','REJECT','REVISE','COMPOSE','DISCUSS']:['COMPOSE','DISCUSS'];
     return allowed.includes(raw)?raw:'DISCUSS';
   }
 
@@ -113,7 +113,8 @@
           const revise=`Überarbeite den folgenden musikalischen Gedanken/Impuls entsprechend dem Änderungswunsch des Nutzers. ${shortIdea}\n\nAUFTRAG:\n${p.assignment}\n\nBISHERIGER IMPULS:\n${p.concept}\n\nÄNDERUNGSWUNSCH:\n${change}`;
           const concept=await direct(provider,url,init.headers,model,revise);p.concept=concept;pending[pendingId]=p;save(pending);return providerResponse(provider,visibleProposal(pendingId,concept),model);
         }
-        return wrappedFetch(input,init);
+        if(intent!=='COMPOSE')return wrappedFetch(input,init);
+        delete pending[pendingId];save(pending);
       }
       if(intent!=='COMPOSE')return wrappedFetch(input,init);
       let {task,sources}=extract(last.content),sourceOrigin='current-workspace';
