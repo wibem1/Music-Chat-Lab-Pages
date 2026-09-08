@@ -25,6 +25,17 @@ function latestScoreRecord(){
   }
   return null;
 }
+function activeWorkspaceRecord(){
+  const api=window.MCLMidiSlots;if(!api?.all)return null;
+  try{
+    const button=document.querySelector('.mcl-midi-slot.active');
+    if(!button)return null;
+    const slot=Number(button.dataset.slot)+1;
+    const item=(api.all()||[]).find(x=>Number(x?.slot)===slot&&x?.score);
+    if(!item)return null;
+    return{score:clone(item.score),createdAt:Date.now(),workspaceItem:item,slot};
+  }catch(_){return null;}
+}
 function latestAssignment(){
   const {chat}=chatState();if(!chat)return'';
   const m=[...(chat.messages||[])].reverse().find(x=>x.role==='user'&&!x.isError&&!x.thinking);
@@ -41,9 +52,15 @@ function scoreMeasures(score){
   const ts=score?.ts||{n:4,d:4},beats=(Number(ts.n)||4)*(4/(Number(ts.d)||4));return String(Math.max(1,Math.ceil(end/Math.max(.25,beats))));
 }
 function ensemble(score){return (score?.tr||[]).map(t=>t.nm).filter(Boolean).join(', ');}
-function currentScoreRecord(){const r=latestScoreRecord();if(r&&(!loadedDocument||r.createdAt>loadedAt))return r;if(loadedDocument?.score)return{score:clone(loadedDocument.score),createdAt:loadedAt};return r;}
+function currentScoreRecord(){
+  const active=activeWorkspaceRecord();
+  if(active)return active;
+  const r=latestScoreRecord();if(r&&(!loadedDocument||r.createdAt>loadedAt))return r;
+  if(loadedDocument?.score)return{score:clone(loadedDocument.score),createdAt:loadedAt};
+  return r;
+}
 function makeDocument(){
-  const rec=currentScoreRecord();if(!rec?.score)throw new Error('Noch keine Komposition vorhanden.');
+  const rec=currentScoreRecord();if(!rec?.score)throw new Error('Kein markiertes Stück auf dem Arbeitstisch.');
   const score=clone(rec.score),previous=loadedDocument?clone(loadedDocument):{};
   const sameScore=!!loadedDocument&&JSON.stringify(loadedDocument.score)===JSON.stringify(score);
   const pm=activeProviderModel(),changedFromLoaded=!!loadedDocument&&!sameScore;
@@ -100,7 +117,7 @@ function installUi(){
   composer.insertBefore(bar,box);renderBadge();
   const input=document.getElementById('clabFileInput');document.getElementById('clabOpenBtn').onclick=()=>{input.value='';input.click();};
   input.onchange=()=>{const f=input.files?.[0];if(f)openFile(f);};
-  document.getElementById('clabSaveBtn').onclick=()=>{try{const d=makeDocument();download(JSON.stringify(d,null,2),safeName(d.title)+'.clab');setNote('CLAB-Datei gespeichert. API-Schlüssel und Chat-Verlauf sind nicht enthalten.');}catch(e){setNote(e?.message||String(e));}};
+  document.getElementById('clabSaveBtn').onclick=()=>{try{const d=makeDocument();download(JSON.stringify(d,null,2),safeName(d.title)+'.clab');setNote(`CLAB gespeichert: ${d.title}. Gespeichert wurde die aktuell markierte Komposition auf dem Arbeitstisch.`);}catch(e){setNote(e?.message||String(e));}};
 }
 window.MCLCLAB={FORMAT,VERSION,applyDocument,makeDocument,getLoadedDocument:()=>clone(loadedDocument),getCurrentScore:()=>clone(currentScoreRecord()?.score||null)};
 installContext();
