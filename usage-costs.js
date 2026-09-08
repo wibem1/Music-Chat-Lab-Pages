@@ -12,7 +12,8 @@ function legacy(){try{return JSON.parse(localStorage.getItem(LEGACY_KEY)||'{}')|
 function chats(){try{return JSON.parse(localStorage.getItem(CHAT_KEY)||'[]')||[]}catch{return[]}}
 function activeChat(){const all=chats(),id=localStorage.getItem(ACTIVE_KEY);return all.find(c=>c.id===id)||all[0]||null}
 function usageCost(u){const p=price(u?.model,u?.input||0),cached=Math.min(Number(u?.cached)||0,Number(u?.input)||0),normal=Math.max(0,(Number(u?.input)||0)-cached),cacheWrite=Number(u?.cacheWrite)||0;return(normal*p.i+cached*(p.c??p.i)+cacheWrite*p.i*1.25+(Number(u?.output)||0)*p.o)/1e6}
-function inferAction(c,i,m){if(m?.usage?.action&&m.usage.action!=='Chat')return m.usage.action;for(let j=i-1;j>=0;j--){const x=c.messages[j];if(x?.role==='user')return window.MCLUsageClassifyAction?.(x.text)||'Chat'}return'Chat'}
+function isConfirmation(text){return /^(ja|ja bitte|mach das|mache das|genau|einverstanden|okay|ok|los|bitte|so machen|ausführen|führe (das|ihn|sie) aus)[.!\s]*$/i.test(String(text||'').trim())}
+function inferAction(c,i,m){if(m?.usage?.action&&m.usage.action!=='Chat')return m.usage.action;for(let j=i-1;j>=0;j--){const x=c.messages[j];if(x?.role!=='user')continue;if(isConfirmation(x.text)){for(let k=j-1;k>=0;k--){const prev=c.messages[k];if(prev?.role==='user'&&!isConfirmation(prev.text)){const a=window.MCLUsageClassifyAction?.(prev.text)||'Chat';if(a!=='Chat')return a}}}return window.MCLUsageClassifyAction?.(x.text)||'Chat'}return'Chat'}
 function render(){
  const x=exact(),old=legacy(),el=document.getElementById('costControl');
  if(el){const cached=x.cached?` · davon ${fmt(x.cached)} gecacht`:'';const legacyText=old.tokens?` · Altbestand vor v1.1.1: ≈ ${fmt(old.tokens)} Input-Tokens / ${old.calls||0} Anfragen (nur geschätzt)`:'';el.textContent=`API-Daten seit v1.1.1: ${fmt(x.input)} Input${cached} · ${fmt(x.output)} Output · ${x.calls.length} echte API-Aufrufe · geschätzte Kosten: ≈ ${money(x.cost)}${legacyText}`}
