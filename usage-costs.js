@@ -1,0 +1,19 @@
+(()=>{
+'use strict';
+const CHAT_KEY='music-chat-lab.chats.v1';
+const COST_KEY='music-chat-lab.cost-control.v1';
+function estimateTokens(text){return Math.ceil(new Blob([String(text||'')]).size/3.6)}
+function price(model,inputTokens=0){let i=0,o=0;switch(String(model||'')){case'gpt-5.6-sol':i=4;o=20;break;case'gpt-5.6-terra':i=2;o=12;break;case'gpt-5.6-luna':i=.2;o=1.2;break;case'claude-sonnet-5':i=2;o=10;break;case'claude-opus-5':i=5;o=25;break;case'claude-sonnet-4-6':i=3;o=15;break;case'gemini-3.8-flash':case'gemini-3.7-flash':i=.75;o=3.75;break;case'gemini-3.1-pro-preview':i=inputTokens>200000?4:2;o=inputTokens>200000?18:12;break;default:i=4;o=20}if(/^gpt-5\.6-/.test(String(model||''))&&inputTokens>272000){i*=2;o*=1.5}return{i,o}}
+function usd(model,inputTokens,outputTokens){const p=price(model,inputTokens);return(inputTokens*p.i+outputTokens*p.o)/1e6}
+function chats(){try{return JSON.parse(localStorage.getItem(CHAT_KEY)||'[]')||[]}catch{return[]}}
+function oldCost(){try{return JSON.parse(localStorage.getItem(COST_KEY)||'{}')||{}}catch{return{}}}
+function scoreFromText(text){let s=String(text||'').trim();const f=s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);if(f)s=f[1].trim();const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a<0||b<=a)return null;try{const x=JSON.parse(s.slice(a,b+1));return x&&Array.isArray(x.tr)&&x.tr.some(t=>Array.isArray(t.nt))?x:null}catch{return null}}
+function fmt(n){return Math.round(Number(n)||0).toLocaleString('de-DE')}
+function money(n){return Number(n||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:3})+' US$'}
+function calculate(){let input=0,output=0,cost=0,calls=0;const comps=[];for(const c of chats()){const history=[];for(const m of c.messages||[]){if(m?.isError||m?.thinking||!['user','assistant'].includes(m?.role))continue;if(m.role==='assistant'){const inTok=estimateTokens(history.map(x=>x.text||'').join('\n')),outTok=estimateTokens(m.text||''),model=m.model||c.model||'';input+=inTok;output+=outTok;cost+=usd(model,inTok,outTok);calls++;const score=scoreFromText(m.text);if(score)comps.push({id:m.id,title:String(score.ti||'Music Chat Lab'),input:inTok,output:outTok,cost:usd(model,inTok,outTok)});history.push({role:m.role,text:m.text||''})}else history.push({role:m.role,text:m.text||''})}}
+const old=oldCost();const legacy=Math.max(0,Number(old.tokens||0)-input);if(legacy){const model=document.getElementById('modelSelect')?.value||'gpt-5.6-sol';input+=legacy;cost+=usd(model,legacy,0)}calls=Math.max(calls,Number(old.calls||0));return{input,output,cost,calls,comps}}
+function render(){const x=calculate(),el=document.getElementById('costControl');if(el)el.textContent=`API-Daten: ≈ ${fmt(x.input)} Input-Tokens · ${x.calls} Anfragen · geschätzte Gesamtkosten: ≈ ${money(x.cost)}`;for(const c of x.comps){const rows=[...document.querySelectorAll('.message-row.assistant')];const row=rows.find(r=>[...r.querySelectorAll('button.generated-file-button')].some(b=>String(b.textContent||'').includes(c.title)));if(!row||row.querySelector('.mcl-composition-cost'))continue;const d=document.createElement('div');d.className='mcl-composition-cost';d.style.cssText='font-size:12px;color:#7b8794;margin-top:5px';d.textContent=`API-Aufwand dieser Komposition: ≈ ${fmt(c.input)} Input + ${fmt(c.output)} Output-Tokens · ≈ ${money(c.cost)}`;row.appendChild(d)}}
+let busy=false;function schedule(){if(busy)return;busy=true;setTimeout(()=>{busy=false;render()},80)}
+function start(){render();new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true,characterData:true});setInterval(render,1500)}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+})();
