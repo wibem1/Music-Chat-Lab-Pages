@@ -1,0 +1,19 @@
+(()=>{
+'use strict';
+const KEY='music-chat-lab.api-usage.v2';
+let active=null;
+function load(){try{const x=JSON.parse(localStorage.getItem(KEY)||'{}');return x&&Array.isArray(x.calls)?x:{calls:[]}}catch{return{calls:[]}}}
+function save(x){try{localStorage.setItem(KEY,JSON.stringify(x))}catch{}}
+function providerFor(url){url=String(url||'');if(url.includes('api.openai.com/v1/responses'))return'openai';if(url.includes('api.anthropic.com/v1/messages'))return'anthropic';if(url.includes('generativelanguage.googleapis.com/')&&url.includes(':generateContent'))return'google';return null}
+function modelFrom(provider,url,body){if(body?.model)return String(body.model);if(provider==='google'){const m=String(url).match(/\/models\/([^/:]+):generateContent/);return m?decodeURIComponent(m[1]):''}return''}
+function usageFrom(provider,d){if(provider==='openai'){const u=d?.usage||{};return{input:Number(u.input_tokens)||0,cached:Number(u.input_tokens_details?.cached_tokens)||0,output:Number(u.output_tokens)||0,reasoning:Number(u.output_tokens_details?.reasoning_tokens)||0}}if(provider==='anthropic'){const u=d?.usage||{};return{input:Number(u.input_tokens)||0,cached:Number(u.cache_read_input_tokens)||0,cacheWrite:Number(u.cache_creation_input_tokens)||0,output:Number(u.output_tokens)||0,reasoning:0}}if(provider==='google'){const u=d?.usageMetadata||{};return{input:Number(u.promptTokenCount)||0,cached:Number(u.cachedContentTokenCount)||0,output:Number(u.candidatesTokenCount)||0,reasoning:Number(u.thoughtsTokenCount)||0}}return null}
+function record(provider,model,d){const u=usageFrom(provider,d);if(!u||!(u.input||u.output||u.cached||u.cacheWrite))return;const rec={id:crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random()}`,time:Date.now(),provider,model:model||'',...u,turnId:active?.id||null};const x=load();x.calls.push(rec);if(x.calls.length>2000)x.calls=x.calls.slice(-2000);save(x);if(active)active.calls.push(rec);window.dispatchEvent(new CustomEvent('mcl-usage-updated',{detail:rec}))}
+window.MCLUsageStartTurn=function(meta={}){active={id:crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random()}`,provider:meta.provider||'',model:meta.model||'',calls:[]};return active.id};
+window.MCLUsageFinishTurn=function(){if(!active)return null;const a=active;active=null;return{id:a.id,provider:a.provider,model:a.model,calls:a.calls.length,input:a.calls.reduce((n,x)=>n+(x.input||0),0),cached:a.calls.reduce((n,x)=>n+(x.cached||0),0),cacheWrite:a.calls.reduce((n,x)=>n+(x.cacheWrite||0),0),output:a.calls.reduce((n,x)=>n+(x.output||0),0),reasoning:a.calls.reduce((n,x)=>n+(x.reasoning||0),0)}};
+window.MCLUsageData=load;
+const nativeFetch=window.fetch.bind(window);
+window.fetch=async function(input,init={}){const url=typeof input==='string'?input:input?.url||'',provider=providerFor(url);if(!provider)return nativeFetch(input,init);let body={};try{body=typeof init.body==='string'?JSON.parse(init.body):{}}catch{}const model=modelFrom(provider,url,body),r=await nativeFetch(input,init);try{const c=r.clone(),d=await c.json();if(r.ok)record(provider,model,d)}catch{}return r};
+const originalOpen=XMLHttpRequest.prototype.open,originalSend=XMLHttpRequest.prototype.send;
+XMLHttpRequest.prototype.open=function(method,url,...rest){this.__mclUsageUrl=String(url||'');return originalOpen.call(this,method,url,...rest)};
+XMLHttpRequest.prototype.send=function(body){const provider=providerFor(this.__mclUsageUrl);if(provider){let req={};try{req=typeof body==='string'?JSON.parse(body):{}}catch{}const model=modelFrom(provider,this.__mclUsageUrl,req);this.addEventListener('load',()=>{if(this.status<200||this.status>=300)return;try{record(provider,model,JSON.parse(this.responseText||'{}'))}catch{}},{once:true})}return originalSend.call(this,body)};
+})();
