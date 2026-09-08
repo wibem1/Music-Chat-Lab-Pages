@@ -23,27 +23,26 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Music Chat Lab source of truth
+      - name: Checkout deployment snapshot
         uses: actions/checkout@v4
-        with:
-          repository: wibem1/Music-Chat-Lab
-          ref: main
-          path: source
 
-      - name: Build Pages artifact from source of truth
+      - name: Build Pages artifact
         shell: bash
         run: |
           mkdir public
           rsync -a \
             --exclude '.git/' \
+            --exclude '.github/' \
             --exclude '.gitignore' \
             --exclude 'README.md' \
             --exclude 'LICENSE' \
-            source/ public/
+            ./ public/
           test -f public/index.html
           test -f public/service-worker.js
           test -f public/composition-engine14.js
           test -f public/music-file-processing.js
+          test -f public/clab-document-v1.js
+          grep -q 'v1.0.17' public/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
