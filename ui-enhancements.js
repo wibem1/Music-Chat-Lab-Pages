@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const VERSION='1.1';
+const VERSION='1.1.1';
 const TABLET_BREAKPOINT=1180;
 const sidebar=document.getElementById('sidebar');
 const closeButton=document.getElementById('sidebarCloseButton');
@@ -20,5 +20,4 @@ infoButton?.addEventListener('click',()=>infoDialog?.showModal());
 infoClose?.addEventListener('click',()=>infoDialog?.close());
 infoDialog?.addEventListener('click',e=>{if(e.target===infoDialog)infoDialog.close()});
 document.querySelectorAll('[data-app-version]').forEach(el=>el.textContent=`v${VERSION}`);
-if(!document.querySelector('script[data-mcl-usage-costs]')){const s=document.createElement('script');s.src='usage-costs.js?v=1.1';s.dataset.mclUsageCosts='1';document.body.appendChild(s)}
 })();
