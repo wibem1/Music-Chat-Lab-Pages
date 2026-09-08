@@ -1,4 +1,4 @@
-const CACHE_NAME = "music-chat-lab-v1-1-1";
+const CACHE_NAME = "music-chat-lab-v1-1-2";
 const APP_SHELL = [
   "./","./index.html",
   "./styles.css?v=1.0.20","./ui-fixes.css?v=1.0.20","./app.js?v=1.1.1","./usage-costs.js?v=1.1.1",
@@ -7,10 +7,10 @@ const APP_SHELL = [
   "./request-control.js?v=1.0.20","./midi-player.js?v=1.0.20","./midi-stop-reset.js?v=1.0.20",
   "./midi-slot-restore.js?v=1.0.20","./midi-input-sync.js?v=1.0.20",
   "./midi-playback-scheduler.js?v=1.0.22","./midi-context.js?v=1.0.20",
-  "./clab-document-v1.js?v=1.0.20",
+  "./clab-document-v1.js?v=1.1.2",
   "./chat-delete.js?v=1.0.20","./chat-titles.js?v=1.0.20",
   "./midi-memory.js?v=1.0.20","./midi-slot-delete.js?v=1.0.20",
-  "./midi-export.js?v=1.0.20","./ui-enhancements.js?v=1.1.1",
+  "./midi-export.js?v=1.0.20","./ui-enhancements.js?v=1.1.2",
   "./manifest.webmanifest?v=1.0.20","./icon.svg?v=1.0.20"
 ];
 self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL)));self.skipWaiting();});
