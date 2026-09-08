@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-// MusicChatLab v1.0.25 — semantic intent routing + concept approval for OpenAI Responses API.
+// MusicChatLab v1.0.26 — semantic intent routing + concept approval for OpenAI Responses API.
 const wrappedFetch=window.fetch.bind(window);
 const STORE='music-chat-lab.pending-openai-compositions.v1';
 const DIAG='music-chat-lab.last-diagnostic.v1';
@@ -20,16 +20,16 @@ function visible(pid,concept){return `Kompositionsidee:\n\n${concept}\n\nDu kann
 function proposalResponse(text,model){return new Response(JSON.stringify({id:'mcl-openai-proposal',object:'response',model,output_text:text,output:[{type:'message',role:'assistant',content:[{type:'output_text',text}]}]}),{status:200,headers:{'content-type':'application/json'}})}
 function outputText(d){if(typeof d?.output_text==='string')return d.output_text;return(d?.output||[]).flatMap(x=>x.content||[]).map(x=>x.text||'').join('\n').trim()}
 async function direct(url,headers,model,prompt){const h=new Headers(headers||{});const r=await wrappedFetch(url,{method:'POST',headers:h,body:JSON.stringify({model,input:[{role:'system',content:SYSTEM_PREFIX},{role:'user',content:prompt}],store:false})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||`OpenAI API-Fehler ${r.status}`);const t=outputText(d);if(!t)throw new Error('OpenAI hat keine Textantwort geliefert.');return t}
-function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'1.0.25',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
+function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'1.0.26',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
 async function classifyIntent(url,headers,model,messages,hasPending){
  const latest=[...messages].reverse().find(m=>m.role==='user');
- const prior=[...messages].reverse().find((m,i,a)=>m.role==='assistant' && m!==latest);
+ const prior=[...messages].reverse().find(m=>m.role==='assistant');
  const {task}=extract(latest?.content||'');
  const priorText=String(prior?.content||'').replace(/\[MCL-(?:OPENAI-)?VORSCHLAG:[a-z0-9]+\]/ig,'').slice(-2500);
- const choices=hasPending?'CONFIRM | REJECT | REVISE | DISCUSS':'COMPOSE | DISCUSS';
- const prompt=`Ordne die aktuelle Nutzereingabe nach ihrer Bedeutung ein, nicht nach einzelnen Schlüsselwörtern.\n\nMögliche Ausgabe: ${choices}.\n\nRegeln:\n- COMPOSE: Der Nutzer möchte tatsächlich neue Musik erzeugen oder vorhandene Musik verändern, fortsetzen, variieren, arrangieren, synthetisieren oder sonst musikalisch bearbeiten lassen.\n- DISCUSS: Der Nutzer möchte sprechen, fragen, analysieren, beurteilen, vergleichen, erklären, kritisieren oder Ideen erörtern, ohne dass jetzt Musik erzeugt oder verändert werden soll. Ein musikalisches Wort wie „Synthese“, „Variation“ oder „Komposition“ allein bedeutet NICHT COMPOSE.\n- CONFIRM (nur bei offenem Vorschlag): Der Nutzer bestätigt, dass die vorgeschlagene Komposition jetzt ausgeführt werden soll.\n- REJECT (nur bei offenem Vorschlag): Der Nutzer verwirft oder stoppt den Vorschlag.\n- REVISE (nur bei offenem Vorschlag): Der Nutzer möchte die vorgeschlagene Kompositionsidee ändern, bevor Musik erzeugt wird.\n- Bei Mehrdeutigkeit wähle DISCUSS; dann kann die KI im normalen Gespräch nachfragen.\n\nVorherige KI-Antwort (gekürzt):\n${priorText}\n\nAktuelle Nutzereingabe:\n${task}\n\nAntworte ausschließlich mit genau einem der erlaubten Wörter.`;
+ const choices=hasPending?'CONFIRM | REJECT | REVISE | COMPOSE | DISCUSS':'COMPOSE | DISCUSS';
+ const prompt=`Ordne die aktuelle Nutzereingabe nach ihrer Bedeutung ein, nicht nach einzelnen Schlüsselwörtern.\n\nMögliche Ausgabe: ${choices}.\n\nRegeln:\n- COMPOSE: Der Nutzer möchte tatsächlich neue Musik erzeugen oder vorhandene Musik verändern, fortsetzen, variieren, arrangieren, synthetisieren oder sonst musikalisch bearbeiten lassen.\n- DISCUSS: Der Nutzer möchte sprechen, fragen, analysieren, beurteilen, vergleichen, erklären, kritisieren oder Ideen erörtern, ohne dass jetzt Musik erzeugt oder verändert werden soll. Ein musikalisches Wort wie „Synthese“, „Variation“ oder „Komposition“ allein bedeutet NICHT COMPOSE.\n- CONFIRM (nur bei offenem Vorschlag): Der Nutzer bestätigt, dass die vorgeschlagene Komposition jetzt ausgeführt werden soll.\n- REJECT (nur bei offenem Vorschlag): Der Nutzer verwirft oder stoppt den Vorschlag.\n- REVISE (nur bei offenem Vorschlag): Der Nutzer möchte die vorgeschlagene Kompositionsidee ändern, bevor Musik erzeugt wird.\n- COMPOSE bleibt auch bei offenem Vorschlag möglich: Wähle COMPOSE, wenn die aktuelle Nachricht einen neuen, eigenständigen Kompositionsauftrag erteilt, statt nur den offenen Vorschlag zu bestätigen oder zu überarbeiten.\n- Bei Mehrdeutigkeit wähle DISCUSS; dann kann die KI im normalen Gespräch nachfragen.\n\nVorherige KI-Antwort (gekürzt):\n${priorText}\n\nAktuelle Nutzereingabe:\n${task}\n\nAntworte ausschließlich mit genau einem der erlaubten Wörter.`;
  const raw=(await direct(url,headers,model,prompt)).trim().toUpperCase();
- const allowed=hasPending?['CONFIRM','REJECT','REVISE','DISCUSS']:['COMPOSE','DISCUSS'];
+ const allowed=hasPending?['CONFIRM','REJECT','REVISE','COMPOSE','DISCUSS']:['COMPOSE','DISCUSS'];
  return allowed.includes(raw)?raw:'DISCUSS';
 }
 window.fetch=async function(input,init={}){
@@ -53,7 +53,8 @@ window.fetch=async function(input,init={}){
     const revise=`Überarbeite die folgende Kompositionsidee entsprechend dem Änderungswunsch. ${shortIdea}\n\nAUFTRAG:\n${p.assignment}\n\nBISHERIGE KOMPONITIONSIDEE:\n${p.concept}\n\nÄNDERUNGSWUNSCH:\n${change}`;
     const concept=await direct(url,init.headers,model,revise);p.concept=concept;pending[pid]=p;save(pending);return proposalResponse(visible(pid,concept),model);
    }
-   return wrappedFetch(input,init);
+   if(intent!=='COMPOSE')return wrappedFetch(input,init);
+   delete pending[pid];save(pending);
   }
   if(intent!=='COMPOSE')return wrappedFetch(input,init);
   const {task,sources}=extract(last.content),a=assignment(task,sources);
