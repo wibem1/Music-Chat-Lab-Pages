@@ -1,6 +1,6 @@
 {
-  "name": "Music Chat Lab",
-  "short_name": "Music Chat Lab",
+  "name": "MusicChatLab",
+  "short_name": "MusicChatLab",
   "description": "Plattformübergreifender KI-Chat für Musik und Dateien.",
   "start_url": "./",
   "scope": "./",
