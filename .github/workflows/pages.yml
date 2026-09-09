@@ -44,7 +44,8 @@ jobs:
           test -f "$RUNNER_TEMP/mcl-pages/midi-stop-reset.js"
           test -f "$RUNNER_TEMP/mcl-pages/music-file-processing.js"
           test -f "$RUNNER_TEMP/mcl-pages/clab-document-v1.js"
-          grep -Fq 'data-app-version>v1.1.18<' "$RUNNER_TEMP/mcl-pages/index.html"
+          test -f "$RUNNER_TEMP/mcl-pages/diagnostic-enhancer.js"
+          grep -Fq 'data-app-version>v1.1.19<' "$RUNNER_TEMP/mcl-pages/index.html"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
