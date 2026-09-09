@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  // v1.1.11 — semantic routing with compact catalogue and selected-score transfer.
+  // v1.1.17 — validate final score JSON, retry once on prose, preserve pending proposal on failure.
   const wrappedFetch = window.fetch.bind(window);
   const STORE = 'music-chat-lab.pending-compositions.v1';
   const DIAG = 'music-chat-lab.last-diagnostic.v1';
@@ -28,18 +28,20 @@
   function catalogue(sources){return sources.map((s,i)=>{const x=sourceInfo(s);return `${i+1}: ${x.slot?`Speicherplatz ${x.slot} · `:''}${x.name} | ${x.bars??'?'} Takte | ${x.bpm??'?'} BPM | ${x.meter??'?'} | Tonart ${x.key??'frei'} | ${x.notes} Noten`}).join('\n')}
   function assignment(task,sources){let a=`Auftrag:\n${task}`;sources.forEach((s,i)=>a+=`\n\nVORHANDENES MATERIAL${sources.length>1?' '+(i+1):''} (${s.name}):\n${JSON.stringify(s.score)}`);return a}
   function visibleProposal(pid,concept){return `Kompositionsvorschlag:\n\n${concept}\n\nWenn du damit einverstanden bist, antworte einfach mit „Ja“ oder „Mach das“. Änderungswünsche kannst du stattdessen direkt schreiben.\n\n[MCL-VORSCHLAG:${pid}]`}
-  function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'1.1.11',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
+  function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'1.1.17',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
   window.MCLDownloadDiagnostic=function(){const raw=localStorage.getItem(DIAG);if(!raw){alert('Noch keine Kompositionsdiagnose vorhanden.');return}const blob=new Blob([raw],{type:'application/json;charset=utf-8'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=`Music-Chat-Lab-Diagnose-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)};
 
   function xhr(url,headers,body,provider){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('POST',url,true);x.timeout=180000;Object.entries(headers||{}).forEach(([k,v])=>x.setRequestHeader(k,v));x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch{};if(x.status>=200&&x.status<300)resolve(d);else reject(new Error(d?.error?.message||`API-Fehler ${x.status}`))};x.onerror=()=>reject(new Error(provider==='google'?'Netzwerkzugriff zur Google-API fehlgeschlagen. Bitte Verbindung/VPN prüfen und erneut versuchen.':'Failed to fetch'));x.ontimeout=()=>reject(new Error('Die Anfrage hat zu lange gedauert und wurde beendet.'));x.send(JSON.stringify(body))})}
   async function claude(url,headers,model,system,user){return xhr(url,headers,{model,max_tokens:32000,output_config:{effort:'medium'},system,messages:[{role:'user',content:user}]},'anthropic')}
   async function gemini(url,headers,system,user){return xhr(url,headers,{systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text:user}]}],generationConfig:{maxOutputTokens:32768}},'google')}
   function anthropicText(d){return(d.content||[]).filter(x=>x.type==='text').map(x=>x.text||'').join('').trim()}
-  function googleText(d){return(d.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join('').trim()}
+  function googleText(d){return(d.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').trim()}
   function providerResponse(provider,text,model){if(provider==='google')return new Response(JSON.stringify({candidates:[{content:{role:'model',parts:[{text}]},finishReason:'STOP'}]}),{status:200,headers:{'content-type':'application/json'}});return new Response(JSON.stringify({id:'mcl-proposal',type:'message',role:'assistant',model,content:[{type:'text',text}],stop_reason:'end_turn'}),{status:200,headers:{'content-type':'application/json'}})}
   function normalizeRequest(provider,body){if(provider==='anthropic')return(Array.isArray(body.messages)?body.messages:[]).filter(m=>typeof m.content==='string').map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}));return(Array.isArray(body.contents)?body.contents:[]).map(m=>({role:m.role==='model'?'assistant':'user',content:(m.parts||[]).map(p=>p.text||'').join('')}))}
   function modelFrom(provider,body,url){if(provider==='anthropic')return body.model||'';const m=String(url).match(/\/models\/([^/:]+):generateContent/);return m?decodeURIComponent(m[1]):''}
   async function direct(provider,url,headers,model,prompt){if(provider==='google'){const d=await gemini(url,headers,SYSTEM_PREFIX,prompt);return googleText(d)}const d=await claude(url,headers,model,SYSTEM_PREFIX,prompt);return anthropicText(d)}
+  function parseScoreText(text){let s=String(text||'').trim();const f=s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);if(f)s=f[1].trim();const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a<0||b<=a)return null;try{const x=JSON.parse(s.slice(a,b+1));return x&&Array.isArray(x.tr)&&x.tr.some(t=>Array.isArray(t?.nt))?x:null}catch{return null}}
+  function obviousPendingIntent(task){const s=String(task||'').trim().toLowerCase().replace(/[.!?]+$/,'').trim();if(/^(ja|j|ok|okay|mach das|mache das|bitte|los|ausführen|ausfuehren)$/.test(s))return'CONFIRM';if(/^(nein|n|verwerfen|abbrechen|lass es|lasse es)$/.test(s))return'REJECT';return null}
 
   function findPendingId(messages,pending){
     for(let i=messages.length-1;i>=0;i--){if(messages[i].role!=='assistant')continue;const m=String(messages[i].content||'').match(/\[MCL-VORSCHLAG:([a-z0-9]+)\]/i);if(m&&pending[m[1]])return m[1]}
@@ -76,16 +78,29 @@
     if(!provider||typeof init.body!=='string')return wrappedFetch(input,init);
     try{
       const body=JSON.parse(init.body),msgs=normalizeRequest(provider,body),last=[...msgs].reverse().find(m=>m.role==='user'&&typeof m.content==='string'),model=modelFrom(provider,body,url);if(!last)return wrappedFetch(input,init);
-      const pending=load(),pendingId=findPendingId(msgs,pending),hasPending=!!(pendingId&&pending[pendingId]);
-      const intent=await classifyIntent(provider,url,init.headers,model,msgs,hasPending),task=extract(last.content).task;
+      const pending=load(),pendingId=findPendingId(msgs,pending),hasPending=!!(pendingId&&pending[pendingId]),task=extract(last.content).task;
+      const intent=(hasPending&&obviousPendingIntent(task))||await classifyIntent(provider,url,init.headers,model,msgs,hasPending);
       diagnostic('intent-classified',{provider,model,intent,hasPending,pendingId,userText:task});
       if(hasPending){
         const p=pending[pendingId],change=task;
         if(intent==='REJECT'){delete pending[pendingId];save(pending);return providerResponse(provider,'Kompositionsidee verworfen. Es wurde keine Komposition erzeugt.',model)}
         if(intent==='CONFIRM'){
           const compPrompt=`${TECHNICAL_PROMPT}\n\nAUFTRAG:\n${p.assignment}\n\nDEIN KONZEPT:\n${p.concept}\n\nGib jetzt die fertige JSON-Partitur aus.`;
-          diagnostic('final-composition-call',{provider,model,userConfirmation:change,task:p.task,sources:p.sourceInfo,concept:p.concept});delete pending[pendingId];save(pending);
-          return providerResponse(provider,await direct(provider,url,init.headers,model,compPrompt),model);
+          diagnostic('final-composition-call',{provider,model,userConfirmation:change,task:p.task,sources:p.sourceInfo,concept:p.concept});
+          let result=await direct(provider,url,init.headers,model,compPrompt);
+          if(!parseScoreText(result)){
+            diagnostic('final-composition-retry',{provider,model,reason:'first response was not valid score JSON'});
+            const retryPrompt=`${TECHNICAL_PROMPT}\n\nAUFTRAG:\n${p.assignment}\n\nDEIN KONZEPT:\n${p.concept}\n\nDie vorige Antwort war KEINE gültige Partitur. Erzeuge jetzt die vollständige Komposition. Antworte ausschließlich mit einem einzigen vollständigen JSON-Objekt im verlangten Partiturformat. Kein Kommentar, keine Zusammenfassung, kein Markdown. Das JSON muss ein Array "tr" enthalten und darin Notenarrays "nt".`;
+            result=await direct(provider,url,init.headers,model,retryPrompt);
+          }
+          if(!parseScoreText(result)){
+            pending[pendingId]=p;save(pending);
+            diagnostic('final-composition-invalid',{provider,model,task:p.task});
+            return providerResponse(provider,'Die KI hat keine gültige JSON-Partitur geliefert. Der Kompositionsauftrag bleibt erhalten. Bitte antworte erneut mit „Ja“, um es noch einmal zu versuchen.',model);
+          }
+          delete pending[pendingId];save(pending);
+          diagnostic('final-composition-valid',{provider,model,task:p.task});
+          return providerResponse(provider,result,model);
         }
         if(intent==='REVISE'){
           const revise=`Überarbeite den folgenden musikalischen Gedanken entsprechend dem Änderungswunsch. ${shortIdea}\n\nAUFTRAG:\n${p.assignment}\n\nBISHERIGER IMPULS:\n${p.concept}\n\nÄNDERUNGSWUNSCH:\n${change}`;
