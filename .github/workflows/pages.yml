@@ -4,8 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-  schedule:
-    - cron: '17 3 * * *'
 
 permissions:
   contents: read
@@ -29,16 +27,24 @@ jobs:
       - name: Build Pages artifact
         shell: bash
         run: |
-          mkdir public
-          rsync -a --exclude '.git/' --exclude '.github/' --exclude '.gitignore' --exclude 'README.md' --exclude 'LICENSE' ./ public/
-          test -f public/index.html
-          test -f public/service-worker.js
-          test -f public/composition-engine14.js
-          test -f public/concept-openai.js
-          test -f public/midi-stop-reset.js
-          test -f public/music-file-processing.js
-          test -f public/clab-document-v1.js
-          grep -Fq 'data-app-version>v1.1.15<' public/index.html
+          rm -rf "$RUNNER_TEMP/mcl-pages"
+          mkdir -p "$RUNNER_TEMP/mcl-pages"
+          rsync -a \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude '.gitignore' \
+            --exclude 'README.md' \
+            --exclude 'LICENSE' \
+            --exclude 'public/' \
+            ./ "$RUNNER_TEMP/mcl-pages/"
+          test -f "$RUNNER_TEMP/mcl-pages/index.html"
+          test -f "$RUNNER_TEMP/mcl-pages/service-worker.js"
+          test -f "$RUNNER_TEMP/mcl-pages/composition-engine14.js"
+          test -f "$RUNNER_TEMP/mcl-pages/concept-openai.js"
+          test -f "$RUNNER_TEMP/mcl-pages/midi-stop-reset.js"
+          test -f "$RUNNER_TEMP/mcl-pages/music-file-processing.js"
+          test -f "$RUNNER_TEMP/mcl-pages/clab-document-v1.js"
+          grep -Fq 'data-app-version>v1.1.15<' "$RUNNER_TEMP/mcl-pages/index.html"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -46,7 +52,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: public
+          path: ${{ runner.temp }}/mcl-pages
 
       - name: Deploy to GitHub Pages
         id: deployment
