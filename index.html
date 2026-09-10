@@ -67,9 +67,9 @@
 <dialog class="settings-dialog" id="settingsDialog">
   <form method="dialog" id="settingsForm" autocomplete="off">
     <div class="dialog-header"><div><h2>API-Einstellungen</h2><p>Die Schlüssel bleiben im lokalen Speicher dieses Geräts und werden nicht in GitHub gespeichert.</p></div><button class="dialog-close" value="cancel">×</button></div>
-    <label class="key-row"><span>Anthropic</span><input id="anthropicKey" type="text" autocomplete="off" style="-webkit-text-security:disc"></label>
-    <label class="key-row"><span>OpenAI</span><input id="openaiKey" type="text" autocomplete="off" style="-webkit-text-security:disc"></label>
-    <label class="key-row"><span>Google Gemini</span><input id="googleKey" type="text" autocomplete="off" style="-webkit-text-security:disc"></label>
+    <label class="key-row"><span>Anthropic</span><input id="anthropicKey" name="mcl-anthropic-api-key" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"></label>
+    <label class="key-row"><span>OpenAI</span><input id="openaiKey" name="mcl-openai-api-key" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"></label>
+    <label class="key-row"><span>Google Gemini</span><input id="googleKey" name="mcl-google-api-key" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"></label>
     <div class="settings-warning">Diese PWA ruft die Anbieter direkt aus dem Browser auf. Verwende sie nur auf eigenen, vertrauenswürdigen Geräten.</div>
     <div class="settings-warning">Backups enthalten den lokalen Music-Chat-Lab-Zustand einschließlich API-Schlüsseln im Klartext. Bewahre Backup-Dateien deshalb vertraulich auf.</div>
     <input id="backupFileInput" type="file" accept=".mclbackup,application/json" hidden>
