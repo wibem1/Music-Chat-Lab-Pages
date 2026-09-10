@@ -1,9 +1,9 @@
-const CACHE_NAME = "music-chat-lab-v1-1-31";
+const CACHE_NAME = "music-chat-lab-v1-1-32";
 const APP_SHELL = [
   "./","./index.html",
   "./styles.css?v=1.0.20","./ui-fixes.css?v=1.1.18","./app.js?v=1.1.13","./composition-state-fix.js?v=1.1.9","./usage-costs.js?v=1.1.18",
   "./music-file-processing.js?v=1.0.20","./download-compat.js?v=1.0.20",
-  "./api-usage.js?v=1.1.16","./composition-engine14.js?v=1.1.5","./request-control.js?v=1.0.20","./composition-architecture.js?v=1.1.31",
+  "./api-usage.js?v=1.1.16","./composition-engine14.js?v=1.1.5","./request-control.js?v=1.1.32","./composition-architecture.js?v=1.1.31",
   "./midi-player.js?v=1.0.20","./midi-stop-reset.js?v=1.0.20",
   "./midi-slot-restore.js?v=1.0.20","./midi-input-sync.js?v=1.1.10",
   "./midi-playback-scheduler.js?v=1.0.22","./midi-context.js?v=1.1.20",
