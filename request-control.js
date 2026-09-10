@@ -1,5 +1,5 @@
 (() => {
-  // v1.1.33 — abort control plus Anthropic Claude-5 output/thinking policy.
+  // v1.1.35 — abort control plus robust Anthropic Claude-5 output/thinking policy.
   const activeFetchControllers = new Set();
   const activeXhrs = new Set();
   const isProviderUrl = u => /api\.anthropic\.com\/v1\/messages|api\.openai\.com\/v1\/responses|generativelanguage\.googleapis\.com\/.*:generateContent/i.test(String(u || ''));
@@ -12,47 +12,71 @@
     return '';
   }
 
-  function applyAnthropicOutputPolicy(url, init) {
-    if (!isAnthropicUrl(url) || typeof init?.body !== 'string') return init;
+  function classifyAnthropicRequest(url, init) {
+    if (!isAnthropicUrl(url) || typeof init?.body !== 'string') return null;
     try {
       const body = JSON.parse(init.body);
       const messages = Array.isArray(body?.messages) ? body.messages : [];
       const lastUser = [...messages].reverse().find(m => m?.role === 'user');
       const prompt = messageText(lastUser).trim();
       const isFinalComposition = /^VERBINDLICHER TECHNISCHER MODUS:\s*(?:PATCH|REPLACE_SCORE|NEW_SCORE)/i.test(prompt);
-
-      if (isFinalComposition) {
-        // The musical decisions already exist in the approved proposal. The final score/patch
-        // is a deterministic serialization task, so Claude 5 must not spend the output budget
-        // on adaptive thinking before emitting the machine-readable JSON.
-        body.thinking = { type: 'disabled' };
-        delete body.output_config;
-
-        // PATCH contains only changed material. 12k visible tokens are generous even for
-        // substantial additions, while preventing another runaway request.
-        if (/^VERBINDLICHER TECHNISCHER MODUS:\s*PATCH/i.test(prompt) && Number(body.max_tokens) > 12000) {
-          body.max_tokens = 12000;
-        }
-        return { ...init, body: JSON.stringify(body) };
-      }
-
-      // app.js sends ordinary visible chat/analysis requests without a top-level system field.
-      // On Sonnet/Opus 5 adaptive thinking is on by default; the former 4096-token ceiling can
-      // therefore be exhausted by thinking alone. Keep thinking for musical judgment, but lower
-      // its effort and reserve enough total output budget for a visible answer.
       const isVisibleChat = !body.system && isClaude5(body.model);
-      if (isVisibleChat) {
-        body.thinking = { type: 'adaptive' };
-        body.output_config = { ...(body.output_config || {}), effort: 'medium' };
-        const current = Number(body.max_tokens) || 4096;
-        body.max_tokens = Math.min(12000, Math.max(8192, current));
-        return { ...init, body: JSON.stringify(body) };
-      }
-
-      return init;
+      return { body, prompt, isFinalComposition, isVisibleChat };
     } catch {
-      return init;
+      return null;
     }
+  }
+
+  function applyAnthropicOutputPolicy(url, init) {
+    const info = classifyAnthropicRequest(url, init);
+    if (!info) return init;
+    const { body, prompt, isFinalComposition, isVisibleChat } = info;
+
+    if (isFinalComposition) {
+      // The musical decisions already exist in the approved proposal. The final score/patch
+      // is a serialization task, so Claude 5 must not spend output tokens on adaptive thinking.
+      body.thinking = { type: 'disabled' };
+      delete body.output_config;
+      if (/^VERBINDLICHER TECHNISCHER MODUS:\s*PATCH/i.test(prompt) && Number(body.max_tokens) > 12000) {
+        body.max_tokens = 12000;
+      }
+      return { ...init, body: JSON.stringify(body) };
+    }
+
+    if (isVisibleChat) {
+      body.thinking = { type: 'adaptive' };
+      body.output_config = { ...(body.output_config || {}), effort: 'medium' };
+      const current = Number(body.max_tokens) || 4096;
+      body.max_tokens = Math.min(12000, Math.max(8192, current));
+      return { ...init, body: JSON.stringify(body) };
+    }
+
+    return init;
+  }
+
+  function hasAnthropicText(data) {
+    return Array.isArray(data?.content) && data.content.some(x => x?.type === 'text' && String(x?.text || '').trim());
+  }
+
+  async function shouldRetryVisibleAnthropic(url, init, response) {
+    const info = classifyAnthropicRequest(url, init);
+    if (!info?.isVisibleChat || !response?.ok) return false;
+    try {
+      const data = await response.clone().json();
+      return !hasAnthropicText(data);
+    } catch {
+      return false;
+    }
+  }
+
+  function makeVisibleFallbackInit(url, init) {
+    const info = classifyAnthropicRequest(url, init);
+    if (!info) return init;
+    const body = info.body;
+    body.thinking = { type: 'disabled' };
+    delete body.output_config;
+    body.max_tokens = Math.min(8192, Math.max(4096, Number(body.max_tokens) || 4096));
+    return { ...init, body: JSON.stringify(body) };
   }
 
   const previousFetch = window.fetch.bind(window);
@@ -72,7 +96,12 @@
       }
     }
     try {
-      return await previousFetch(input, { ...adjustedInit, signal: controller.signal });
+      const response = await previousFetch(input, { ...adjustedInit, signal: controller.signal });
+      if (await shouldRetryVisibleAnthropic(url, adjustedInit, response)) {
+        const fallbackInit = makeVisibleFallbackInit(url, adjustedInit);
+        return await previousFetch(input, { ...fallbackInit, signal: controller.signal });
+      }
+      return response;
     } finally {
       activeFetchControllers.delete(controller);
       if (originalSignal && relay) originalSignal.removeEventListener('abort', relay);
