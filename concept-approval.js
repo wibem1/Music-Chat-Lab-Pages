@@ -1,14 +1,22 @@
 (() => {
   'use strict';
-  // v1.1.17 — validate final score JSON, retry once on prose, preserve pending proposal on failure.
+  // MusicChatLab v1.1.22 — universal partial-edit workflow with app-side score reconstruction.
   const wrappedFetch = window.fetch.bind(window);
   const STORE = 'music-chat-lab.pending-compositions.v1';
   const DIAG = 'music-chat-lab.last-diagnostic.v1';
-  const SYSTEM_PREFIX = `Du bist ein Kompositions- und Produktionsassistent für MIDI.\nErfinde selbständige, geschlossene Musik nach dem Auftrag des Nutzers. Achte auf Stimmführung, Dynamik (Velocity 1-127), Rhythmik und Artikulation. Bei der Bearbeitung vorhandenen Materials sollen dessen musikalische Identität, Form und Umfang angemessen berücksichtigt werden, sofern der Auftrag nichts anderes verlangt.`;
-  const TECHNICAL_PROMPT = `NOTATION UND AUSGABE:\n- "d" = Notierter Wert in Viertelnoten-Beats.\n- "g" = Gate/Klingdauer als Faktor.\n- "st" = System (0=Standard, 1=Rechte Hand / oberes System, 2=Linke Hand / unteres System).\n- Format: JSON mit ti, bpm, ts, k, sm und tr.\n- nt: [StartBeat, Dauer, Pitch, Velocity, Staff, Gate].\n- ct: [Beat, CC, Wert].\nGib ausschließlich valides JSON aus.`;
+  const SYSTEM_PREFIX = `Du bist ein Kompositions- und Produktionsassistent für MIDI.
+Erfinde selbständige, geschlossene Musik nach dem Auftrag des Nutzers. Achte auf Stimmführung, Dynamik (Velocity 1-127), Rhythmik und Artikulation. Bei der Bearbeitung vorhandenen Materials sollen dessen musikalische Identität, Form und Umfang angemessen berücksichtigt werden, sofern der Auftrag nichts anderes verlangt.`;
+  const TECHNICAL_PROMPT = `NOTATION UND AUSGABE:
+- "d" = Notierter Wert in Viertelnoten-Beats.
+- "g" = Gate/Klingdauer als Faktor.
+- "st" = System (0=Standard, 1=Rechte Hand / oberes System, 2=Linke Hand / unteres System).
+- Vollständige Partitur: JSON mit ti, bpm, ts, k, sm und tr.
+- Track: nm, ch, pg, nt, optional ct.
+- nt: [StartBeat, Dauer, Pitch, Velocity, Staff, Gate].
+- ct: [Beat, CC, Wert].`;
   const sourceRe = /\[MCL-ENGINE14-SCORE name=("(?:[^"\\]|\\.)*")\]\n([\s\S]*?)\n\[\/MCL-ENGINE14-SCORE\]/g;
   const workspaceRe = /\n*--- MUSIKALISCHER ARBEITSTISCH(?: \(KATALOG\))? ---[\s\S]*?--- ENDE MUSIKALISCHER ARBEITSTISCH(?: \(KATALOG\))? ---\n*/g;
-  const shortIdea = `Formuliere einen kurzen musikalischen Gedanken/Impuls in höchstens drei kurzen Sätzen. Beschreibe nur die wesentliche kompositorische Idee, keinen detaillierten Ablauf oder technischen Bauplan. Nenne im Vorschlag ausdrücklich die geplante Länge in Takten und das geplante Tempo in BPM.`;
+  const shortIdea = window.MCLCompositionEdit?.conceptGuide || `Beginne mit „Auftrag verstanden:“ und gib den Auftrag kurz in eigenen Worten wieder. Formuliere danach in höchstens drei kurzen Sätzen die wesentliche kompositorische Idee. Nenne Tempo in BPM und eine Taktzahl nur, wenn sie aus den Daten eindeutig hervorgeht.`;
 
   function load(){try{return JSON.parse(localStorage.getItem(STORE))||{}}catch{return{}}}
   function save(x){localStorage.setItem(STORE,JSON.stringify(x))}
@@ -18,17 +26,24 @@
     const sources=[];let m;sourceRe.lastIndex=0;
     while((m=sourceRe.exec(String(text||'')))){try{sources.push({name:JSON.parse(m[1]),score:JSON.parse(m[2])})}catch{}}
     sourceRe.lastIndex=0;
-    const task=String(text||'').replace(sourceRe,'').replace(workspaceRe,'\n').replace(/\n\n--- DATEIANHÄNGE ---\n?/g,'\n').trim();
+    const task=String(text||'').replace(sourceRe,'').replace(workspaceRe,'\n').replace(/\n\n--- DATEIANHÄNGE ---\n?/g,'\n').replace(/\n*\[MCL-VERSTAENDNISCHECK-V121\][\s\S]*$/,'').trim();
     return {task,sources};
   }
   function workspaceSources(){try{return (window.MCLMidiWorkspaceSources?.()||[]).filter(x=>x?.score).map(x=>({slot:Number(x.slot)||null,name:x.name||x.score?.ti||'Stück',score:clone(x.score)}))}catch{return[]}}
   function sameSource(a,b){try{return JSON.stringify(a?.score)===JSON.stringify(b?.score)}catch{return false}}
   function mergeSources(...groups){const out=[];for(const g of groups)for(const s of(g||[]))if(s?.score&&!out.some(x=>sameSource(x,s)))out.push(s);return out}
-  function sourceInfo(s){const tr=Array.isArray(s?.score?.tr)?s.score.tr:[],ts=s?.score?.ts||{};let notes=0,end=0;tr.forEach(t=>(t.nt||[]).forEach(n=>{if(!Array.isArray(n))return;notes++;end=Math.max(end,(Number(n[0])||0)+(Number(n[1])||0))}));const bar=(Number(ts.n)||4)*(4/(Number(ts.d)||4));return{slot:s.slot??null,name:s.name,notes,bars:bar?Number((end/bar).toFixed(2)):null,bpm:s?.score?.bpm??null,meter:ts.n&&ts.d?`${ts.n}/${ts.d}`:null,key:s?.score?.k??null}}
-  function catalogue(sources){return sources.map((s,i)=>{const x=sourceInfo(s);return `${i+1}: ${x.slot?`Speicherplatz ${x.slot} · `:''}${x.name} | ${x.bars??'?'} Takte | ${x.bpm??'?'} BPM | ${x.meter??'?'} | Tonart ${x.key??'frei'} | ${x.notes} Noten`}).join('\n')}
+  function sourceInfo(s){
+    const tr=Array.isArray(s?.score?.tr)?s.score.tr:[],ts=s?.score?.ts||{};
+    let notes=0,end=0;
+    tr.forEach(t=>(t.nt||[]).forEach(n=>{if(!Array.isArray(n))return;notes++;end=Math.max(end,(Number(n[0])||0)+(Number(n[1])||0))}));
+    const hasMeter=Number(ts.n)>0&&Number(ts.d)>0;
+    const bar=hasMeter?Number(ts.n)*(4/Number(ts.d)):null;
+    return {slot:s.slot??null,name:s.name,notes,bars:bar?Number((end/bar).toFixed(2)):null,beats:Number(end.toFixed(2)),bpm:s?.score?.bpm??null,meter:hasMeter?`${ts.n}/${ts.d}`:null,key:s?.score?.k??null};
+  }
+  function catalogue(sources){return sources.map((s,i)=>{const x=sourceInfo(s);return `${i+1}: ${x.slot?`Speicherplatz ${x.slot} · `:''}${x.name} | ${x.bars??'?'} Takte | ${x.beats??'?'} Beats | ${x.bpm??'?'} BPM | ${x.meter??'?'} | Tonart ${x.key??'frei'} | ${x.notes} Noten`}).join('\n')}
   function assignment(task,sources){let a=`Auftrag:\n${task}`;sources.forEach((s,i)=>a+=`\n\nVORHANDENES MATERIAL${sources.length>1?' '+(i+1):''} (${s.name}):\n${JSON.stringify(s.score)}`);return a}
   function visibleProposal(pid,concept){return `Kompositionsvorschlag:\n\n${concept}\n\nWenn du damit einverstanden bist, antworte einfach mit „Ja“ oder „Mach das“. Änderungswünsche kannst du stattdessen direkt schreiben.\n\n[MCL-VORSCHLAG:${pid}]`}
-  function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'1.1.17',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
+  function diagnostic(stage,data){try{localStorage.setItem(DIAG,JSON.stringify({version:'1.1.22',timestamp:new Date().toISOString(),stage,...data},null,2))}catch{}}
   window.MCLDownloadDiagnostic=function(){const raw=localStorage.getItem(DIAG);if(!raw){alert('Noch keine Kompositionsdiagnose vorhanden.');return}const blob=new Blob([raw],{type:'application/json;charset=utf-8'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=`Music-Chat-Lab-Diagnose-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)};
 
   function xhr(url,headers,body,provider){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('POST',url,true);x.timeout=180000;Object.entries(headers||{}).forEach(([k,v])=>x.setRequestHeader(k,v));x.onload=()=>{let d={};try{d=JSON.parse(x.responseText)}catch{};if(x.status>=200&&x.status<300)resolve(d);else reject(new Error(d?.error?.message||`API-Fehler ${x.status}`))};x.onerror=()=>reject(new Error(provider==='google'?'Netzwerkzugriff zur Google-API fehlgeschlagen. Bitte Verbindung/VPN prüfen und erneut versuchen.':'Failed to fetch'));x.ontimeout=()=>reject(new Error('Die Anfrage hat zu lange gedauert und wurde beendet.'));x.send(JSON.stringify(body))})}
@@ -41,7 +56,13 @@
   function modelFrom(provider,body,url){if(provider==='anthropic')return body.model||'';const m=String(url).match(/\/models\/([^/:]+):generateContent/);return m?decodeURIComponent(m[1]):''}
   async function direct(provider,url,headers,model,prompt){if(provider==='google'){const d=await gemini(url,headers,SYSTEM_PREFIX,prompt);return googleText(d)}const d=await claude(url,headers,model,SYSTEM_PREFIX,prompt);return anthropicText(d)}
   function parseScoreText(text){let s=String(text||'').trim();const f=s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);if(f)s=f[1].trim();const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a<0||b<=a)return null;try{const x=JSON.parse(s.slice(a,b+1));return x&&Array.isArray(x.tr)&&x.tr.some(t=>Array.isArray(t?.nt))?x:null}catch{return null}}
+  function materialize(text,sources){return window.MCLCompositionEdit?.materialize?.(text,sources)||parseScoreText(text)}
   function obviousPendingIntent(task){const s=String(task||'').trim().toLowerCase().replace(/[.!?]+$/,'').trim();if(/^(ja|j|ok|okay|mach das|mache das|bitte|los|ausführen|ausfuehren)$/.test(s))return'CONFIRM';if(/^(nein|n|verwerfen|abbrechen|lass es|lasse es)$/.test(s))return'REJECT';return null}
+  function sourcesForPending(p){
+    if(Array.isArray(p?.sources)&&p.sources.length)return p.sources.map(clone);
+    const ws=workspaceSources(),infos=Array.isArray(p?.sourceInfo)?p.sourceInfo:[];
+    return infos.map(info=>ws.find(s=>(info.slot&&Number(s.slot)===Number(info.slot))||s.name===info.name)).filter(Boolean).map(clone);
+  }
 
   function findPendingId(messages,pending){
     for(let i=messages.length-1;i>=0;i--){if(messages[i].role!=='assistant')continue;const m=String(messages[i].content||'').match(/\[MCL-VORSCHLAG:([a-z0-9]+)\]/i);if(m&&pending[m[1]])return m[1]}
@@ -85,25 +106,29 @@
         const p=pending[pendingId],change=task;
         if(intent==='REJECT'){delete pending[pendingId];save(pending);return providerResponse(provider,'Kompositionsidee verworfen. Es wurde keine Komposition erzeugt.',model)}
         if(intent==='CONFIRM'){
-          const compPrompt=`${TECHNICAL_PROMPT}\n\nAUFTRAG:\n${p.assignment}\n\nDEIN KONZEPT:\n${p.concept}\n\nGib jetzt die fertige JSON-Partitur aus.`;
-          diagnostic('final-composition-call',{provider,model,userConfirmation:change,task:p.task,sources:p.sourceInfo,concept:p.concept});
+          const editSources=sourcesForPending(p);
+          const protocol=window.MCLCompositionEdit?.protocol||'';
+          const compPrompt=`${TECHNICAL_PROMPT}\n\n${protocol}\n\nAUFTRAG:\n${p.assignment}\n\nDEIN KONZEPT:\n${p.concept}\n\nGib jetzt die fertige JSON-Partitur aus oder, wenn nur Teile vorhandenen Materials geändert/ergänzt werden, das PATCH-JSON gemäß Ausgabestrategie.`;
+          diagnostic('final-composition-call',{provider,model,userConfirmation:change,task:p.task,sources:p.sourceInfo,editSourceCount:editSources.length,concept:p.concept});
           let result=await direct(provider,url,init.headers,model,compPrompt);
-          if(!parseScoreText(result)){
-            diagnostic('final-composition-retry',{provider,model,reason:'first response was not valid score JSON'});
-            const retryPrompt=`${TECHNICAL_PROMPT}\n\nAUFTRAG:\n${p.assignment}\n\nDEIN KONZEPT:\n${p.concept}\n\nDie vorige Antwort war KEINE gültige Partitur. Erzeuge jetzt die vollständige Komposition. Antworte ausschließlich mit einem einzigen vollständigen JSON-Objekt im verlangten Partiturformat. Kein Kommentar, keine Zusammenfassung, kein Markdown. Das JSON muss ein Array "tr" enthalten und darin Notenarrays "nt".`;
+          let score=materialize(result,editSources);
+          if(!score){
+            diagnostic('final-composition-retry',{provider,model,reason:'first response was not valid score or patch JSON'});
+            const retryPrompt=`${compPrompt}\n\nDie vorige Antwort war kein gültiges Kompositionsergebnis. Antworte jetzt ausschließlich mit genau einem validen JSON-Objekt: entweder vollständige Partitur oder PATCH-JSON gemäß Ausgabestrategie. Kein Kommentar, keine Zusammenfassung, kein Markdown.`;
             result=await direct(provider,url,init.headers,model,retryPrompt);
+            score=materialize(result,editSources);
           }
-          if(!parseScoreText(result)){
+          if(!score){
             pending[pendingId]=p;save(pending);
             diagnostic('final-composition-invalid',{provider,model,task:p.task});
-            return providerResponse(provider,'Die KI hat keine gültige JSON-Partitur geliefert. Der Kompositionsauftrag bleibt erhalten. Bitte antworte erneut mit „Ja“, um es noch einmal zu versuchen.',model);
+            return providerResponse(provider,'Die KI hat kein gültiges Kompositionsergebnis geliefert. Der Kompositionsauftrag bleibt erhalten. Bitte antworte erneut mit „Ja“, um es noch einmal zu versuchen.',model);
           }
           delete pending[pendingId];save(pending);
-          diagnostic('final-composition-valid',{provider,model,task:p.task});
-          return providerResponse(provider,result,model);
+          diagnostic('final-composition-valid',{provider,model,task:p.task,resultMode:String(result).includes('"mode"')?'patch':'score',tracks:score.tr?.length||0});
+          return providerResponse(provider,JSON.stringify(score),model);
         }
         if(intent==='REVISE'){
-          const revise=`Überarbeite den folgenden musikalischen Gedanken entsprechend dem Änderungswunsch. ${shortIdea}\n\nAUFTRAG:\n${p.assignment}\n\nBISHERIGER IMPULS:\n${p.concept}\n\nÄNDERUNGSWUNSCH:\n${change}`;
+          const revise=`Überarbeite den folgenden musikalischen Gedanken entsprechend dem Änderungswunsch.\n\n${shortIdea}\n\nAUFTRAG:\n${p.assignment}\n\nBISHERIGER IMPULS:\n${p.concept}\n\nÄNDERUNGSWUNSCH:\n${change}`;
           const concept=await direct(provider,url,init.headers,model,revise);p.concept=concept;pending[pendingId]=p;save(pending);return providerResponse(provider,visibleProposal(pendingId,concept),model);
         }
         if(intent==='COMPOSE'){delete pending[pendingId];save(pending)}
@@ -115,8 +140,9 @@
       }
       if(intent!=='COMPOSE')return wrappedFetch(input,init);
       const current=extract(last.content).sources,candidates=mergeSources(current,workspaceSources()),selected=await selectSources(provider,url,init.headers,model,task,candidates);
-      const a=assignment(task,selected),concept=await direct(provider,url,init.headers,model,`${shortIdea}\n\nAUFTRAG:\n${a}`),pid=id(),info=selected.map(sourceInfo);
-      pending[pid]={assignment:a,concept,task,sourceInfo:info,createdAt:Date.now()};save(pending);
+      const a=assignment(task,selected),info=selected.map(sourceInfo),overview=info.length?`\n\nQUELLENÜBERSICHT:\n${catalogue(selected)}`:'';
+      const concept=await direct(provider,url,init.headers,model,`${shortIdea}${overview}\n\nAUFTRAG:\n${a}`),pid=id();
+      pending[pid]={assignment:a,concept,task,sourceInfo:info,sources:selected.map(s=>({slot:s.slot??null,name:s.name,score:clone(s.score)})),createdAt:Date.now()};save(pending);
       diagnostic('proposal-created',{provider,model,task,candidateCount:candidates.length,sources:info,concept});
       return providerResponse(provider,visibleProposal(pid,concept),model);
     }catch(e){const msg=e?.message||String(e);if(provider==='google')return new Response(JSON.stringify({error:{message:msg}}),{status:502,headers:{'content-type':'application/json'}});return new Response(JSON.stringify({error:{message:msg}}),{status:500,headers:{'content-type':'application/json'}})}
