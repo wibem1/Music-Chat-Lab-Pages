@@ -3,7 +3,7 @@
 if(window.__mclExplicitModeV134)return;
 window.__mclExplicitModeV134=true;
 
-const VERSION='1.3.6';
+const VERSION='1.3.8';
 const nativeFetch=window.fetch.bind(window);
 let forwardingCompose=false;
 window.MCLRequestMode='chat';
@@ -61,7 +61,7 @@ function removeDecisionLayer(system){
 }
 
 function directive(mode){
-  if(mode==='compose')return `AKTUELLER AUSFÜHRUNGSMODUS: KOMPONIERE.\nDieser Modus wurde ausdrücklich vom Nutzer gewählt. Der aktuelle Nutzertext ist im Zusammenhang mit dem bisherigen Dialog als verbindlicher Auftrag zur musikalischen Ausführung zu behandeln. Erzeuge oder bearbeite die gewünschte MIDI-Fassung jetzt. Falls dafür vollständige Notendaten fehlen, fordere sie mit <MCL_NEED> an. Die endgültige Antwort dieses Zugs muss genau eine gültige <MCL_ACTION> enthalten. Gib nicht zuerst nur eine Kompositionsidee oder einen bloßen Vorschlag aus.`;
+  if(mode==='compose')return `AKTUELLER AUSFÜHRUNGSMODUS: KOMPONIERE.\nDieser Modus wurde ausdrücklich vom Nutzer gewählt. Der aktuelle Nutzertext ist im Zusammenhang mit dem bisherigen Dialog als verbindlicher Auftrag zur musikalischen Ausführung zu behandeln. Erzeuge oder bearbeite die gewünschte MIDI-Fassung jetzt. Falls dafür vollständige Notendaten fehlen, fordere sie mit <MCL_NEED> an. Die endgültige Antwort dieses Zugs muss genau eine gültige <MCL_ACTION> enthalten. Gib nicht zuerst nur eine Kompositionsidee oder einen bloßen Vorschlag aus.\n\nKOMPOSITIONSIDEE ALS FESTES METADATUM: Jede ausgeführte Komposition oder Bearbeitung muss eine konkrete musikalische Kompositionsidee mitführen. Wenn im bisherigen Chat bereits eine Kompositionsidee entwickelt wurde, verwende diese als Grundlage und bewahre ihren musikalischen Kern. Wenn ohne vorherigen Konzeptdialog direkt komponiert wird, entwickle die Kompositionsidee selbst während dieses Zugs, ohne Rückfrage und ohne zusätzliche Freigabestufe. Schreibe die Idee bei NEW_SCORE in score.sm; bei PATCH, MERGE oder REPLACE_SCORE in action.summary bzw. zusätzlich in score.sm. Die Idee soll die musikalische Konzeption beschreiben und darf kein bloßer technischer Statussatz wie „MIDI wurde erzeugt“ sein. Sie ist Metadatum des resultierenden Stücks und wird später in CLAB gespeichert und angezeigt.`;
   return `AKTUELLER AUSFÜHRUNGSMODUS: CHAT.\nDieser Modus wurde ausdrücklich vom Nutzer gewählt. In diesem Zug wird keine MIDI-Fassung erzeugt oder verändert und es darf keine <MCL_ACTION> ausgegeben werden. Antworte auf den eigentlichen Inhalt des Nutzertexts. Wenn der Nutzer im CHAT-Modus eine Komposition, Variation, Bearbeitung oder sonstige musikalische Ausführung verlangt, führe sie nicht als MIDI aus, sondern entwickle unmittelbar eine konkrete musikalische Kompositionsidee bzw. Bearbeitungsidee dafür. Triff die dafür nötigen musikalischen Entscheidungen selbst auf Grundlage des Auftrags und des bisherigen Dialogs. Stelle keine vorbereitenden Rückfragen und gib keine Auswahlkataloge aus, außer der Nutzer bittet ausdrücklich um Fragen, Alternativen oder Klärung. Die Idee soll konkret genug sein, dass sie anschließend mit KOMPONIERE unmittelbar umgesetzt werden kann.`;
 }
 
