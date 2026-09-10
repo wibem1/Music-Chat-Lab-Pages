@@ -31,7 +31,7 @@
   <main class="main-panel">
     <header class="topbar">
       <button class="icon-button mobile-only" id="menuButton" aria-label="Verlauf öffnen">☰</button>
-      <span class="version-badge mobile-only" data-app-version>v1.1.26</span>
+      <span class="version-badge mobile-only" data-app-version>v1.1.27</span>
       <div class="current-chat-title" id="currentChatTitle">Neuer Chat</div>
       <div class="provider-controls">
         <select id="providerSelect" aria-label="KI-Anbieter"><option value="anthropic">Claude</option><option value="openai">OpenAI</option><option value="google">Gemini</option></select>
@@ -75,7 +75,7 @@
     <div class="dialog-actions"><button type="button" class="secondary-button" id="backupCreateButton">Backup erstellen</button><button type="button" class="secondary-button" id="backupRestoreButton">Backup laden</button><input id="backupFileInput" type="file" accept=".mclbackup,application/json" hidden><button type="button" class="secondary-button" id="diagnosticDownloadButton">Diagnose-Datei speichern</button><button type="button" class="secondary-button" id="clearKeysButton">Schlüssel löschen</button><button type="submit" class="primary-button">Speichern</button></div>
   </form>
 </dialog>
-<dialog class="about-dialog" id="infoDialog"><div class="about-card"><h2>MusicChatLab</h2><p>KI-Chat und musikalischer Arbeitstisch für Analyse, Komposition und Weiterentwicklung von MIDI- und MusicXML-Material.</p><p class="about-version">Version <span data-app-version>v1.1.26</span></p><p class="about-meta">Engine Build 14 · CLAB v1</p><div class="about-actions"><button type="button" class="primary-button" id="infoCloseButton">Schließen</button></div></div></dialog>
+<dialog class="about-dialog" id="infoDialog"><div class="about-card"><h2>MusicChatLab</h2><p>KI-Chat und musikalischer Arbeitstisch für Analyse, Komposition und Weiterentwicklung von MIDI- und MusicXML-Material.</p><p class="about-version">Version <span data-app-version>v1.1.27</span></p><p class="about-meta">Engine Build 14 · CLAB v1</p><div class="about-actions"><button type="button" class="primary-button" id="infoCloseButton">Schließen</button></div></div></dialog>
 
 <script src="music-file-processing.js?v=1.0.20"></script>
 <script src="download-compat.js?v=1.0.20"></script>
@@ -104,8 +104,8 @@
 <script src="midi-memory.js?v=1.1.8"></script>
 <script src="midi-slot-delete.js?v=1.0.20"></script>
 <script src="midi-export.js?v=1.0.20"></script>
-<script src="backup-manager.js?v=1.1.26"></script>
-<script src="ui-enhancements.js?v=1.1.26"></script>
+<script src="backup-manager.js?v=1.1.27"></script>
+<script src="ui-enhancements.js?v=1.1.27"></script>
 <script src="diagnostic-enhancer.js?v=1.1.22"></script>
 <script>(()=>{document.getElementById('diagnosticDownloadButton')?.addEventListener('click',()=>window.MCLDownloadDiagnostic?.());const list=document.getElementById('chatList'),n=document.getElementById('newChatButton');if(list&&n&&list.children.length===0)n.click()})();</script>
 </body>
