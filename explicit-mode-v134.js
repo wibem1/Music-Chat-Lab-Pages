@@ -3,7 +3,7 @@
 if(window.__mclExplicitModeV134)return;
 window.__mclExplicitModeV134=true;
 
-const VERSION='1.3.4';
+const VERSION='1.3.6';
 const nativeFetch=window.fetch.bind(window);
 let forwardingCompose=false;
 window.MCLRequestMode='chat';
@@ -28,6 +28,15 @@ function removeLegacyProposalMarkers(){
     }
     if(changed)localStorage.setItem(key,JSON.stringify(chats));
   }catch(_){ }
+}
+
+function hasAssistantContext(){
+  try{
+    const chats=JSON.parse(localStorage.getItem('music-chat-lab.chats.v1')||'[]');
+    const id=localStorage.getItem('music-chat-lab.active-chat.v1');
+    const chat=Array.isArray(chats)?chats.find(c=>c?.id===id):null;
+    return !!chat?.messages?.some(m=>m?.role==='assistant'&&!m?.isError&&!m?.thinking&&String(m?.text||'').trim());
+  }catch{return false}
 }
 
 function providerFor(url){
@@ -97,6 +106,15 @@ function bindButtons(){
   chat.addEventListener('click',()=>{if(!forwardingCompose)setMode('chat')},true);
   compose.addEventListener('click',()=>{
     if(chat.disabled)return;
+    if(!input.value.trim()){
+      if(!hasAssistantContext()){
+        const note=document.getElementById('composerNote');
+        if(note)note.textContent='Bitte zuerst einen Kompositionsauftrag eingeben oder im Chat eine Kompositionsidee entwickeln.';
+        return;
+      }
+      input.value='Setze den zuletzt im Chat entwickelten Kompositionsvorschlag jetzt als MIDI um.';
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+    }
     setMode('compose');
     forwardingCompose=true;
     try{chat.click()}finally{forwardingCompose=false}
