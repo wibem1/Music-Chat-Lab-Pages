@@ -1,9 +1,9 @@
 (()=>{
 'use strict';
-if(window.__mclCompositionArchitectureV1131)return;
-window.__mclCompositionArchitectureV1131=true;
+if(window.__mclCompositionArchitectureV1136)return;
+window.__mclCompositionArchitectureV1136=true;
 
-const VERSION='1.1.31';
+const VERSION='1.1.36';
 const STORE='music-chat-lab.pending-compositions.v2';
 const LEGACY_STORES=['music-chat-lab.pending-compositions.v1','music-chat-lab.pending-openai-compositions.v1'];
 const DIAG='music-chat-lab.last-diagnostic.v1';
@@ -196,6 +196,9 @@ function obviousPendingIntent(task){
   if(/^(nein|n|ablehnen|verwerfen|abbrechen|lass es|lasse es|nicht machen)$/.test(t))return'REJECT';
   return null;
 }
+function forcedComposeTask(task){
+  return /^\s*\[MCL-DIALOG-OFFER-ACCEPTED\]/i.test(String(task||''));
+}
 async function route(provider,url,headers,model,task,previous,candidates,activeIndex,hasPending){
   const choices=hasPending?'CONFIRM | REJECT | REVISE | COMPOSE | ANALYZE | DISCUSS':'COMPOSE | ANALYZE | DISCUSS';
   const prompt=`Ordne die aktuelle Nutzereingabe ein und wähle zugleich nur die musikalischen Quellen, die dafür tatsächlich benötigt werden.\n\nINTENTS: ${choices}\nCOMPOSE = neue Musik erzeugen oder vorhandene Musik musikalisch verändern.\nANALYZE = konkrete Musik anhand ihrer tatsächlichen Noten-, Harmonie-, Rhythmus-, Form- oder Struktur-Daten untersuchen, beurteilen oder vergleichen.\nDISCUSS = allgemeines Gespräch oder Erklärung ohne Bedarf an vollständigen Notendaten.\nCONFIRM = offenen Kompositionsvorschlag ausführen.\nREJECT = offenen Vorschlag verwerfen.\nREVISE = offenen Kompositionsvorschlag vor der Ausführung ändern.\nDie aktuell markierte Quelle ist nur Dialogzustand, keine automatische Vorgabe. Bezieht sich der Nutzer aber inhaltlich auf „dieses Stück“, „die Fassung“, „das Ergebnis“ o.ä., ist die markierte Quelle die primäre Referenz.\nBei echter Mehrdeutigkeit DISCUSS.\n\nQUELLENKATALOG:\n${candidates.length?catalogue(candidates,activeIndex):'Keine musikalische Quelle vorhanden.'}\n\nVORHERIGE KI-ANTWORT:\n${String(previous||'').replace(/\[MCL-(?:OPENAI-)?VORSCHLAG:[a-z0-9]+\]/ig,'').slice(-1600)}\n\nAKTUELLE NUTZEREINGABE:\n${task}\n\nAntworte ausschließlich als JSON: {"intent":"...","sources":[1,2]}. sources enthält nur Katalognummern; bei keiner benötigten Quelle [].`;
@@ -286,10 +289,11 @@ window.fetch=async function(input,init={}){
   const model=modelFrom(provider,url,body),msgs=messagesFor(provider,body),last=[...msgs].reverse().find(m=>m.role==='user');
   if(!last)return baseFetch(input,init);
   const extracted=extract(last.content),task=extracted.task,previous=[...msgs].reverse().find(m=>m.role==='assistant')?.content||'',pending=findPending(msgs),shortcut=pending?obviousPendingIntent(task):null;
-  const candidates=mergeSources(extracted.sources,workspaceSources(),pending?pendingSources(pending.p):[]),activeIndex=activeSourceIndex(candidates);
+  const candidates=mergeSources(extracted.sources,workspaceSources(),pending?pendingSources(pending.p):[]),activeIndex=activeSourceIndex(candidates),forcedCompose=forcedComposeTask(task);
   try{
-    const decision=shortcut?{intent:shortcut,sources:[],sourceNumbers:[]}:await route(provider,url,init.headers,model,task,previous,candidates,activeIndex,!!pending);
-    diagnostic('route',{provider,model,intent:decision.intent,userText:task,hasPending:!!pending,candidateCount:candidates.length,selectedSources:decision.sources.map(sourceInfo),activeIndex});
+    let decision=shortcut?{intent:shortcut,sources:[],sourceNumbers:[]}:await route(provider,url,init.headers,model,task,previous,candidates,activeIndex,!!pending);
+    if(forcedCompose&&!pending)decision={...decision,intent:'COMPOSE'};
+    diagnostic('route',{provider,model,intent:decision.intent,forcedIntent:forcedCompose&&!pending?'COMPOSE':null,userText:task,hasPending:!!pending,candidateCount:candidates.length,selectedSources:decision.sources.map(sourceInfo),activeIndex});
 
     if(pending){
       if(decision.intent==='REJECT'){
