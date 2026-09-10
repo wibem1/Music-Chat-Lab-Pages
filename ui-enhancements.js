@@ -7,14 +7,6 @@ const backdrop=document.getElementById('sidebarBackdrop');
 const infoButton=document.getElementById('infoButton');
 const infoDialog=document.getElementById('infoDialog');
 const infoClose=document.getElementById('infoCloseButton');
-function loadFixes(){
-  if(window.__mclV126Loader)return;window.__mclV126Loader=true;
-  const load126=()=>{if(window.__mclV126DialogContext)return;const u=document.createElement('script');u.src='v126-dialog-context.js?v=1.1.26';u.async=false;document.head.appendChild(u)};
-  const load125=()=>{if(window.__mclV125Fixes){load126();return}const t=document.createElement('script');t.src='v125-fixes.js?v=1.1.25';t.async=false;t.onload=load126;t.onerror=load126;document.head.appendChild(t)};
-  if(window.__mclV124Fixes){load125();return}
-  const s=document.createElement('script');s.src='v124-fixes.js?v=1.1.24';s.async=false;s.onload=load125;s.onerror=load125;document.head.appendChild(s);
-}
-loadFixes();
 function closeSidebar(){sidebar?.classList.remove('open');document.body.classList.remove('sidebar-open')}
 closeButton?.addEventListener('click',closeSidebar);
 backdrop?.addEventListener('click',closeSidebar);
