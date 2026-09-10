@@ -1,0 +1,101 @@
+(()=>{
+'use strict';
+if(window.__mclCompositionControllerV120)return;
+window.__mclCompositionControllerV120=true;
+
+const VERSION='1.2.0';
+const PENDING='music-chat-lab.pending-v120.v1';
+const META='music-chat-lab.score-meta-v120.v1';
+const DIAG='music-chat-lab.last-diagnostic.v1';
+const transport=window.fetch.bind(window);
+const clone=x=>x==null?x:JSON.parse(JSON.stringify(x));
+const sourceRe=/\[MCL-ENGINE14-SCORE name=("(?:[^"\\]|\\.)*")\]\n([\s\S]*?)\n\[\/MCL-ENGINE14-SCORE\]/g;
+
+try{localStorage.removeItem('music-chat-lab.pending-compositions.v1');localStorage.removeItem('music-chat-lab.pending-openai-compositions.v1')}catch(_){ }
+
+function load(key){try{return JSON.parse(localStorage.getItem(key)||'{}')||{}}catch{return{}}}
+function save(key,x){try{localStorage.setItem(key,JSON.stringify(x))}catch(_){}}
+function diag(stage,data={}){save(DIAG,{version:VERSION,timestamp:new Date().toISOString(),stage,...data})}
+function id(){return Math.random().toString(36).slice(2,10)}
+function fingerprint(x){const s=JSON.stringify(x||{});let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return`${s.length}:${(h>>>0).toString(16)}`}
+function providerFor(url){url=String(url||'');if(url.includes('api.anthropic.com/v1/messages'))return'anthropic';if(url.includes('api.openai.com/v1/responses'))return'openai';if(url.includes('generativelanguage.googleapis.com/')&&url.includes(':generateContent'))return'google';return null}
+function modelFor(provider,url,body){if(provider==='anthropic'||provider==='openai')return String(body?.model||'');const m=String(url).match(/\/models\/([^/:]+):generateContent/);return m?decodeURIComponent(m[1]):''}
+function textOf(m){if(typeof m?.content==='string')return m.content;if(Array.isArray(m?.content))return m.content.map(x=>x?.text||x?.input_text||x?.output_text||'').join('');if(Array.isArray(m?.parts))return m.parts.map(x=>x?.text||'').join('');return''}
+function messagesOf(provider,body){if(provider==='anthropic')return(body.messages||[]).map(m=>({role:m.role,content:textOf(m)}));if(provider==='openai')return(body.input||[]).map(m=>({role:m.role,content:textOf(m)}));return(body.contents||[]).map(m=>({role:m.role==='model'?'assistant':'user',content:textOf(m)}))}
+function lastUser(msgs){for(let i=msgs.length-1;i>=0;i--)if(msgs[i].role==='user')return msgs[i];return null}
+function lastAssistant(msgs){for(let i=msgs.length-1;i>=0;i--)if(msgs[i].role==='assistant')return msgs[i];return null}
+function cleanTask(text){let s=String(text||'');sourceRe.lastIndex=0;s=s.replace(sourceRe,'');s=s.replace(/\n*--- MUSIKALISCHER ARBEITSTISCH(?: \(KATALOG\))? ---[\s\S]*?--- ENDE MUSIKALISCHER ARBEITSTISCH(?: \(KATALOG\))? ---/g,'');s=s.replace(/\n*--- AUSGEWÄHLTES MUSIKMATERIAL ---[\s\S]*?--- ENDE AUSGEWÄHLTES MUSIKMATERIAL ---/g,'');s=s.replace(/\n*--- AUTOMATISCH BEREITGESTELLTES MUSIKMATERIAL ---[\s\S]*?--- ENDE AUTOMATISCH BEREITGESTELLTES MUSIKMATERIAL ---/g,'');s=s.replace(/\n*\[MCL-[A-Z0-9-]+\][\s\S]*$/,'');s=s.replace(/\n\n--- DATEIANHÄNGE ---\n?/g,'\n');return s.trim()}
+function embeddedSources(text){const out=[];let m;sourceRe.lastIndex=0;while((m=sourceRe.exec(String(text||'')))){try{out.push({slot:null,name:JSON.parse(m[1]),score:JSON.parse(m[2]),origin:'message'})}catch(_){}}sourceRe.lastIndex=0;return out}
+function workspaceSources(){try{return(window.MCLMidiWorkspaceSources?.()||[]).filter(x=>x?.score).map(x=>({slot:Number(x.slot)||null,name:x.name||x.score?.ti||'Stück',score:clone(x.score),origin:'workspace'}))}catch{return[]}}
+function activeWorkspace(){try{const all=workspaceSources(),b=document.querySelector('.mcl-midi-slot.active');if(!b)return null;const n=Number(b.dataset.slot)+1;return all.find(x=>x.slot===n)||null}catch{return null}}
+function sameScore(a,b){try{return fingerprint(a?.score)===fingerprint(b?.score)}catch{return false}}
+function mergeSources(...groups){const out=[];for(const g of groups)for(const s of(g||[]))if(s?.score&&!out.some(x=>sameScore(x,s)))out.push(s);return out}
+function scoreInfo(s){let notes=0,end=0;for(const t of s?.score?.tr||[])for(const n of t?.nt||[])if(Array.isArray(n)){notes++;end=Math.max(end,(Number(n[0])||0)+(Number(n[1])||0))}const ts=s?.score?.ts||{},has=Number(ts.n)>0&&Number(ts.d)>0,bar=has?Number(ts.n)*(4/Number(ts.d)):null;return{slot:s?.slot??null,name:s?.name||'Quelle',notes,beats:Number(end.toFixed(3)),bars:bar?Number((end/bar).toFixed(2)):null,bpm:s?.score?.bpm??null,meter:has?`${ts.n}/${ts.d}`:null,key:s?.score?.k??null}}
+function catalogue(sources){return sources.map((s,i)=>{const x=scoreInfo(s);return`${i+1}. ${x.slot?`Speicherplatz ${x.slot}: `:''}${x.name} | ${x.notes} Noten | ${x.beats} Beats | ${x.meter||'?'} | ${x.bpm??'?'} BPM | ${x.key||'Tonart frei'}`}).join('\n')||'Keine musikalische Quelle.'}
+function sourceBlocks(sources){return sources.map((s,i)=>`QUELLE ${i+1}${s.slot?` / Speicherplatz ${s.slot}`:''}: ${s.name}\n${JSON.stringify(s.score)}`).join('\n\n')}
+function activeIndex(active,candidates){if(!active)return null;const i=candidates.findIndex(x=>sameScore(x,active));return i>=0?i+1:null}
+function parseObject(text){let s=String(text||'').trim();const f=s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);if(f)s=f[1].trim();const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a<0||b<=a)return null;try{return JSON.parse(s.slice(a,b+1))}catch{return null}}
+function isScore(x){return!!x&&Array.isArray(x.tr)&&x.tr.some(t=>Array.isArray(t?.nt))}
+function confirmText(s){return /^(ja|j|ja bitte|ok|okay|mach das|mache das|bitte|los|ausführen|ausfuehren|genau|einverstanden|so machen)[.!?\s]*$/i.test(String(s||'').trim())}
+function rejectText(s){return /^(nein|n|ablehnen|verwerfen|abbrechen|nicht machen|lass es|lasse es)[.!?\s]*$/i.test(String(s||'').trim())}
+function markerId(msgs){for(let i=msgs.length-1;i>=0;i--){if(msgs[i].role!=='assistant')continue;const m=String(msgs[i].content||'').match(/\[MCL-VORSCHLAG:([a-z0-9]+)\]/i);if(m)return m[1]}return null}
+function findPending(msgs){const store=load(PENDING),pid=markerId(msgs);if(pid&&store[pid])return{store,pid,p:store[pid]};const recent=Object.entries(store).filter(([,p])=>Date.now()-Number(p?.createdAt||0)<60*60*1000).sort((a,b)=>Number(b[1].createdAt||0)-Number(a[1].createdAt||0));return recent.length===1?{store,pid:recent[0][0],p:recent[0][1]}:null}
+
+async function withTimeout(promise,ms){let t;const timeout=new Promise((_,rej)=>{t=setTimeout(()=>rej(new Error('Die Anfrage hat zu lange gedauert und wurde beendet.')),ms)});try{return await Promise.race([promise,timeout])}finally{clearTimeout(t)}}
+async function rawCall(provider,url,headers,model,prompt,{maxTokens=1200,timeout=120000}={}){
+  let body;
+  if(provider==='anthropic')body={model,max_tokens:maxTokens,output_config:{effort:'medium'},system:'Du arbeitest in Music Chat Lab. Folge dem aktuellen Auftrag exakt und erfinde keine zusätzlichen Einschränkungen.',messages:[{role:'user',content:prompt}]};
+  else if(provider==='openai')body={model,input:[{role:'system',content:'Du arbeitest in Music Chat Lab. Folge dem aktuellen Auftrag exakt und erfinde keine zusätzlichen Einschränkungen.'},{role:'user',content:prompt}],store:false,max_output_tokens:maxTokens};
+  else body={systemInstruction:{parts:[{text:'Du arbeitest in Music Chat Lab. Folge dem aktuellen Auftrag exakt und erfinde keine zusätzlichen Einschränkungen.'}]},contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:maxTokens}};
+  const r=await withTimeout(transport(url,{method:'POST',headers,body:JSON.stringify(body)}),timeout);const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.message||`API-Fehler ${r.status}`);
+  if(provider==='anthropic')return(d.content||[]).filter(x=>x.type==='text').map(x=>x.text||'').join('').trim();
+  if(provider==='openai'){if(typeof d.output_text==='string')return d.output_text.trim();return(d.output||[]).flatMap(x=>x.content||[]).map(x=>x.text||'').join('\n').trim()}
+  return(d.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join('').trim();
+}
+function synthetic(provider,text,model){if(provider==='anthropic')return new Response(JSON.stringify({id:'mcl-v120',type:'message',role:'assistant',model,content:[{type:'text',text}],stop_reason:'end_turn'}),{status:200,headers:{'content-type':'application/json'}});if(provider==='openai')return new Response(JSON.stringify({id:'mcl-v120',object:'response',model,output_text:text,output:[{type:'message',role:'assistant',content:[{type:'output_text',text}]}]}),{status:200,headers:{'content-type':'application/json'}});return new Response(JSON.stringify({candidates:[{content:{role:'model',parts:[{text}]},finishReason:'STOP'}]}),{status:200,headers:{'content-type':'application/json'}})}
+function errorResponse(message){return new Response(JSON.stringify({error:{message}}),{status:500,headers:{'content-type':'application/json'}})}
+
+async function route(provider,url,headers,model,msgs,candidates,pending){
+  const task=cleanTask(lastUser(msgs)?.content||''),prior=cleanTask(lastAssistant(msgs)?.content||'').slice(-1400),active=activeWorkspace(),aix=activeIndex(active,candidates);
+  const choices=pending?'CONFIRM, REJECT, REVISE, COMPOSE, ANALYZE, DISCUSS':'COMPOSE, ANALYZE, DISCUSS';
+  const prompt=`ROUTING. Entscheide nur Bedeutung und benötigte Quellen; komponiere nichts.\nErlaubte intents: ${choices}.\nCOMPOSE = neue Musik erzeugen oder vorhandene Musik musikalisch verändern.\nANALYZE = konkrete vorhandene Musik beurteilen, untersuchen oder vergleichen; dafür werden Notendaten benötigt.\nDISCUSS = Antwort ohne vollständige Partiturdaten möglich.\n${pending?'CONFIRM = offenen Vorschlag ausführen. REJECT = verwerfen. REVISE = bestätigungsfähige Kompositionsidee ändern.':''}\nEntscheide semantisch, nicht über Wortlisten. Ein aktuell ausgewähltes Stück ist nur Dialogzustand, keine automatische Quelle.\n\nAktuell ausgewählte Quelle im Katalog: ${aix??'keine'}\nKATALOG:\n${catalogue(candidates)}\n\nVorherige KI-Antwort:\n${prior}\n\nAktuelle Nutzereingabe:\n${task}\n\nAntworte ausschließlich als JSON: {"intent":"...","sources":[1,2]}. Bei DISCUSS dürfen sources leer sein.`;
+  const raw=await rawCall(provider,url,headers,model,prompt,{maxTokens:300,timeout:90000}),x=parseObject(raw),allowed=choices.split(', ');let intent=String(x?.intent||'').toUpperCase();if(!allowed.includes(intent))intent='DISCUSS';const nums=[...new Set((Array.isArray(x?.sources)?x.sources:[]).map(Number).filter(n=>Number.isInteger(n)&&n>=1&&n<=candidates.length))];return{intent,sources:nums.map(n=>candidates[n-1]),raw};
+}
+
+async function makeProposal(provider,url,headers,model,task,sources,change=null,oldConcept=''){
+  const prompt=`KOMPONITIONSIDEE UND TECHNISCHER ERGEBNISMODUS. Komponiere noch keine Noten.\nFormuliere eine kurze Kompositionsidee, die den freien Auftrag wirklich trifft. Beginne den Text mit „Auftrag verstanden:“ und fasse zuerst knapp zusammen, was erzeugt/verändert und was gegebenenfalls unverändert bleiben soll. Danach höchstens drei kurze Sätze zum musikalischen Gedanken. Keine detaillierte Bauanleitung.\nLege gleichzeitig rein technisch den Ergebnismodus fest:\nPATCH = mindestens ein Teil einer vorhandenen ausgewählten Quelle bleibt exakt unverändert; nur Änderungen/Ergänzungen werden später ausgegeben.\nREPLACE_SCORE = vorhandene Quelle dient als Ausgangsmaterial, aber der resultierende Score ersetzt sie vollständig.\nNEW_SCORE = neue Musik ohne verwendete Quelle.\nBei PATCH ist base die Nummer der Basisscore-Quelle aus der unten stehenden Auswahl.\n\nAUFTRAG:\n${task}\n${change?`\nÄNDERUNGSWUNSCH ZUR BISHERIGEN IDEE:\n${change}\n\nBISHERIGE IDEE:\n${oldConcept}`:''}\n\nAUSGEWÄHLTE QUELLEN:\n${sourceBlocks(sources)}\n\nAntworte ausschließlich als JSON: {"concept":"Auftrag verstanden: ...","mode":"PATCH|REPLACE_SCORE|NEW_SCORE","base":1}.`;
+  let raw=await rawCall(provider,url,headers,model,prompt,{maxTokens:1100,timeout:120000}),x=parseObject(raw);if(!x||typeof x.concept!=='string'||!['PATCH','REPLACE_SCORE','NEW_SCORE'].includes(String(x.mode||'').toUpperCase())){raw=await rawCall(provider,url,headers,model,prompt+'\nKORREKTUR: Nur das verlangte valide JSON ausgeben.',{maxTokens:1100,timeout:120000});x=parseObject(raw)}
+  if(!x||typeof x.concept!=='string')throw new Error('Die Kompositionsidee konnte nicht zuverlässig gespeichert werden.');let mode=String(x.mode||'').toUpperCase();if(!['PATCH','REPLACE_SCORE','NEW_SCORE'].includes(mode))throw new Error('Der technische Ergebnismodus konnte nicht bestimmt werden.');let base=x.base==null?null:Math.trunc(Number(x.base));if(mode==='NEW_SCORE')base=null;else if(!(base>=1&&base<=sources.length))base=sources.length?1:null;return{concept:x.concept.trim(),mode,base};
+}
+function visibleProposal(pid,concept){return`Kompositionsvorschlag:\n\n${concept}\n\nWenn du damit einverstanden bist, antworte einfach mit „Ja“ oder „Mach das“. Änderungswünsche kannst du direkt schreiben.\n\n[MCL-VORSCHLAG:${pid}]`}
+
+function patchPrompt(p){const base=Math.max(1,Math.trunc(Number(p.base)||1));return`FÜHRE JETZT GENAU DIE BESTÄTIGTE KOMPITIONSIDEE AUS. Keine neue Planung.\nTECHNISCHER MODUS: PATCH. Dieser Modus ist verbindlich.\nGib ausschließlich die musikalischen Änderungen als valides PATCH-JSON aus. Unveränderte Ausgangsnoten dürfen NICHT erneut ausgegeben werden. Die App rekonstruiert daraus das vollständige Ergebnis.\nFormat: {"mode":"patch","base":${base},"ti":"Titel","sm":"kurze Zusammenfassung","meta":{},"ops":[...]}. Zulässige ops: add_track, insert_track, replace_track, delete_track, replace_range. Track: nm,ch,pg,nt,optional ct. nt=[StartBeat,Dauer,Pitch,Velocity,Staff,Gate], ct=[Beat,CC,Wert].\nRealisiere die bestätigte musikalische Idee tatsächlich in den Notendaten; bloße formale Erfüllung genügt nicht.\n\nURSPRÜNGLICHER AUFTRAG:\n${p.task}\n\nBESTÄTIGTE KOMPONITIONSIDEE:\n${p.concept}\n\nQUELLEN:\n${sourceBlocks(p.sources)}\n\nAntworte ausschließlich mit einem JSON-Objekt.`}
+function fullPrompt(p){return`FÜHRE JETZT GENAU DIE BESTÄTIGTE KOMPONITIONSIDEE AUS. Keine neue Planung.\nTECHNISCHER MODUS: ${p.mode}. Dieser Modus ist verbindlich.\nGib eine vollständige Partitur als valides JSON mit ti,bpm,ts,k,sm,tr aus. Track: nm,ch,pg,nt,optional ct. nt=[StartBeat,Dauer,Pitch,Velocity,Staff,Gate], ct=[Beat,CC,Wert].\nRealisiere die bestätigte musikalische Idee tatsächlich in den Notendaten.\n\nURSPRÜNGLICHER AUFTRAG:\n${p.task}\n\nBESTÄTIGTE KOMPONITIONSIDEE:\n${p.concept}${p.sources?.length?`\n\nQUELLEN:\n${sourceBlocks(p.sources)}`:''}\n\nAntworte ausschließlich mit einem JSON-Objekt.`}
+function materialize(raw,p){const x=parseObject(raw);if(p.mode==='PATCH'){if(String(x?.mode||'').toLowerCase()!=='patch')return null;return window.MCLCompositionEdit?.materialize?.(raw,p.sources||[])||null}if(isScore(x))return x;if(String(x?.mode||'').toLowerCase()==='replace_score'&&isScore(x?.score))return x.score;return null}
+function storeScoreMeta(score,p,provider,model){const all=load(META);all[fingerprint(score)]={task:p.task,concept:p.concept,mode:p.mode,base:p.base,provider,model,sourceInfo:(p.sources||[]).map(scoreInfo),createdAt:Date.now()};save(META,all)}
+async function execute(provider,url,headers,model,rec){const p=rec.p,prompt=p.mode==='PATCH'?patchPrompt(p):fullPrompt(p),max=p.mode==='PATCH'?12000:32000;diag('v120-final-call',{provider,model,pendingId:rec.pid,task:p.task,concept:p.concept,mode:p.mode,base:p.base,sources:(p.sources||[]).map(scoreInfo)});let raw=await rawCall(provider,url,headers,model,prompt,{maxTokens:max,timeout:p.mode==='PATCH'?300000:360000}),score=materialize(raw,p);if(!score){diag('v120-final-retry',{provider,model,pendingId:rec.pid,mode:p.mode,outputCharacters:String(raw).length});raw=await rawCall(provider,url,headers,model,prompt+`\nKORREKTUR: Die vorige Antwort war für den verbindlichen Modus ${p.mode} ungültig. Gib ausschließlich das verlangte JSON aus.`,{maxTokens:max,timeout:p.mode==='PATCH'?300000:360000});score=materialize(raw,p)}if(!score)throw new Error(`Die KI hat kein gültiges Ergebnis im bestätigten Modus ${p.mode} geliefert.`);storeScoreMeta(score,p,provider,model);delete rec.store[rec.pid];save(PENDING,rec.store);diag('v120-final-valid',{provider,model,pendingId:rec.pid,task:p.task,concept:p.concept,mode:p.mode,base:p.base,tracks:score.tr.length,outputCharacters:String(raw).length,scoreFingerprint:fingerprint(score)});return synthetic(provider,JSON.stringify(score),model)}
+
+function appendSelected(provider,body,sources){if(!sources.length)return body;const extra=`\n\n--- AUSGEWÄHLTES MUSIKMATERIAL ---\n${sources.map(s=>`[MCL-ENGINE14-SCORE name=${JSON.stringify(s.name)}]\n${JSON.stringify(s.score)}\n[/MCL-ENGINE14-SCORE]`).join('\n\n')}\n--- ENDE AUSGEWÄHLTES MUSIKMATERIAL ---`;const b=clone(body);if(provider==='anthropic'){for(let i=b.messages.length-1;i>=0;i--)if(b.messages[i].role==='user'){b.messages[i].content=cleanTask(textOf(b.messages[i]))+extra;break}}else if(provider==='openai'){for(let i=b.input.length-1;i>=0;i--)if(b.input[i].role==='user'){b.input[i].content=cleanTask(textOf(b.input[i]))+extra;break}}else{for(let i=b.contents.length-1;i>=0;i--)if(b.contents[i].role!=='model'){b.contents[i].parts=[{text:cleanTask(textOf(b.contents[i]))+extra}];break}}return b}
+
+window.fetch=async function(input,init={}){
+  const url=typeof input==='string'?input:input?.url||'',provider=providerFor(url);if(!provider||typeof init.body!=='string')return transport(input,init);
+  let body;try{body=JSON.parse(init.body)}catch{return transport(input,init)}
+  const model=modelFor(provider,url,body),msgs=messagesOf(provider,body),user=lastUser(msgs),task=cleanTask(user?.content||'');if(!user)return transport(input,init);
+  const rec=findPending(msgs);
+  try{
+    if(rec&&confirmText(task))return await execute(provider,url,init.headers,model,rec);
+    if(rec&&rejectText(task)){delete rec.store[rec.pid];save(PENDING,rec.store);diag('v120-proposal-rejected',{provider,model,pendingId:rec.pid});return synthetic(provider,'Kompositionsidee verworfen. Es wurde keine Komposition erzeugt.',model)}
+    const candidates=mergeSources(embeddedSources(user.content),workspaceSources()),r=await route(provider,url,init.headers,model,msgs,candidates,!!rec);diag('v120-routed',{provider,model,intent:r.intent,userText:task,active:scoreInfo(activeWorkspace()||{}),sources:r.sources.map(scoreInfo),hasPending:!!rec});
+    if(rec&&r.intent==='CONFIRM')return await execute(provider,url,init.headers,model,rec);
+    if(rec&&r.intent==='REJECT'){delete rec.store[rec.pid];save(PENDING,rec.store);return synthetic(provider,'Kompositionsidee verworfen. Es wurde keine Komposition erzeugt.',model)}
+    if(rec&&r.intent==='REVISE'){const q=await makeProposal(provider,url,init.headers,model,rec.p.task,rec.p.sources,task,rec.p.concept);rec.p={...rec.p,...q,createdAt:Date.now()};rec.store[rec.pid]=rec.p;save(PENDING,rec.store);diag('v120-proposal-revised',{provider,model,pendingId:rec.pid,task:rec.p.task,concept:q.concept,mode:q.mode,base:q.base});return synthetic(provider,visibleProposal(rec.pid,q.concept),model)}
+    if(rec&&r.intent==='COMPOSE'){delete rec.store[rec.pid];save(PENDING,rec.store)}
+    if(r.intent==='ANALYZE')return transport(input,{...init,body:JSON.stringify(appendSelected(provider,body,r.sources))});
+    if(r.intent==='DISCUSS')return transport(input,init);
+    if(r.intent!=='COMPOSE')return transport(input,init);
+    const q=await makeProposal(provider,url,init.headers,model,task,r.sources),pid=id(),store=load(PENDING);store[pid]={task,concept:q.concept,mode:q.mode,base:q.base,sources:r.sources.map(clone),provider,model,createdAt:Date.now()};save(PENDING,store);diag('v120-proposal-created',{provider,model,pendingId:pid,task,concept:q.concept,mode:q.mode,base:q.base,sources:r.sources.map(scoreInfo)});return synthetic(provider,visibleProposal(pid,q.concept),model);
+  }catch(e){const msg=e?.message||String(e);diag('v120-error',{provider,model,userText:task,error:msg});return errorResponse(msg)}
+};
+
+document.querySelectorAll('[data-app-version]').forEach(el=>el.textContent='v'+VERSION);
+})();
