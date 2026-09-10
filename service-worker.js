@@ -1,4 +1,4 @@
-const CACHE_NAME = "music-chat-lab-v1-2-3";
+const CACHE_NAME = "music-chat-lab-v1-2-4";
 const APP_SHELL = [
   "./","./index.html",
   "./styles.css?v=1.0.20","./ui-fixes.css?v=1.1.18","./app.js?v=1.2.3","./composition-state.js?v=1.2.1","./usage-costs.js?v=1.1.18",
