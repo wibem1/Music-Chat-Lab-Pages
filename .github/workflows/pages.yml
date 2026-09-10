@@ -50,11 +50,12 @@ jobs:
           test -f "$RUNNER_TEMP/mcl-pages/diagnostic-enhancer.js"
           test -f "$RUNNER_TEMP/mcl-pages/backup-manager.js"
 
-          grep -q 'data-app-version>v1.2.3<' "$RUNNER_TEMP/mcl-pages/index.html"
+          grep -q 'data-app-version>v1.2.4<' "$RUNNER_TEMP/mcl-pages/index.html"
           grep -q 'app.js?v=1.2.3' "$RUNNER_TEMP/mcl-pages/index.html"
-          grep -q 'const CACHE_NAME = "music-chat-lab-v1-2-3"' "$RUNNER_TEMP/mcl-pages/service-worker.js"
+          grep -q 'service-worker.js?v=1.2.4' "$RUNNER_TEMP/mcl-pages/index.html"
+          grep -q 'const CACHE_NAME = "music-chat-lab-v1-2-4"' "$RUNNER_TEMP/mcl-pages/service-worker.js"
 
-          printf 'commit=%s\nversion=1.2.3\nbuilt=%s\n' "$GITHUB_SHA" "$(date -u +%FT%TZ)" > "$RUNNER_TEMP/mcl-pages/deploy-info.txt"
+          printf 'commit=%s\nversion=1.2.4\nbuilt=%s\n' "$GITHUB_SHA" "$(date -u +%FT%TZ)" > "$RUNNER_TEMP/mcl-pages/deploy-info.txt"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
