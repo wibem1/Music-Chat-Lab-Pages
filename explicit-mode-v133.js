@@ -12,6 +12,24 @@ function setMode(mode){
   window.MCLRequestMode=mode==='compose'?'compose':'chat';
 }
 
+function removeLegacyProposalMarkers(){
+  const key='music-chat-lab.chats.v1';
+  try{
+    const chats=JSON.parse(localStorage.getItem(key)||'[]');
+    if(!Array.isArray(chats))return;
+    let changed=false;
+    for(const chat of chats){
+      if(!Array.isArray(chat?.messages))continue;
+      for(const message of chat.messages){
+        if(typeof message?.text!=='string')continue;
+        const cleaned=message.text.replace(/\n*\[MCL-(?:OPENAI-)?VORSCHLAG:[a-z0-9]+\]\s*/ig,'\n').replace(/\n{3,}/g,'\n\n').trim();
+        if(cleaned!==message.text){message.text=cleaned;changed=true;}
+      }
+    }
+    if(changed)localStorage.setItem(key,JSON.stringify(chats));
+  }catch(_){ }
+}
+
 function providerFor(url){
   const u=String(url||'');
   if(u.includes('api.anthropic.com/v1/messages'))return'anthropic';
@@ -92,6 +110,7 @@ function bindButtons(){
   new MutationObserver(syncDisabled).observe(chat,{attributes:true,attributeFilter:['disabled']});
 }
 
+removeLegacyProposalMarkers();
 bindButtons();
 window.MCLExplicitModeV133={version:VERSION,getMode:()=>window.MCLRequestMode,setMode};
 })();
