@@ -3,7 +3,7 @@
 if(window.__mclCompositionStateV120)return;
 window.__mclCompositionStateV120=true;
 
-const VERSION='1.2.0';
+const VERSION='1.2.1';
 const CHAT_KEY='music-chat-lab.chats.v1';
 const ACTIVE_KEY='music-chat-lab.active-chat.v1';
 const META='music-chat-lab.score-meta-v120.v1';
