@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__mclDialogContinuationV1134)return;
-window.__mclDialogContinuationV1134=true;
+if(window.__mclDialogContinuationV1135)return;
+window.__mclDialogContinuationV1135=true;
 
 const innerFetch=window.fetch.bind(window);
 const OFFER_MARK=/\[MCL-DIALOG-OFFER-ACCEPTED\]/;
@@ -45,15 +45,31 @@ function isShortAffirmative(text){
   const lead=normalizedLead(String(text||'').split(/\n--- |\n\[MCL-/,1)[0]);
   return /^(ja|ja bitte|ja, bitte|gern|gerne|okay|ok|mach das|mache das|bitte|los|genau|einverstanden|sehr gern|sehr gerne)$/.test(lead);
 }
-function isMusicalOffer(text){
-  const t=String(text||'').toLowerCase();
-  const asks=/(möchtest du|soll ich|kann ich|willst du|wenn du möchtest|wenn du willst|darf ich)[\s\S]{0,500}[?]/.test(t)||/möchtest du[\s\S]{0,800}(erstell|komponier|überarbeit|variier)/.test(t);
-  const music=/(komponier|überarbeit|variation|variante|fassung|version|melodie|melodiestimme|stimme|begleitung|stück|komposition|arrangier|harmonisier)/.test(t);
-  const action=/(erstell|komponier|überarbeit|variier|schreib|mach|entwickel|arrangier|harmonisier)/.test(t);
-  return asks&&music&&action;
+function isExplicitContinuation(text){
+  const t=normalizedLead(String(text||'').split(/\n--- |\n\[MCL-/,1)[0]);
+  const action=/(überarbeit|ueberarbeit|verbesser|ändere|aendere|variiere|variier|komponier|erstell|mach|setze|führe|fuehre)/.test(t);
+  const music=/(melodie|melodiestimme|stimme|musik|stück|stueck|komposition|fassung|version|variation|begleitung|arrangement)/.test(t);
+  const continuation=/(wie (?:von dir )?(?:vorgeschlagen|beschrieben|empfohlen)|wie besprochen|entsprechend (?:deinem|dem) vorschlag|so wie vorgeschlagen|jetzt wie)/.test(t);
+  return action&&music&&(continuation||/^(überarbeit|ueberarbeit|verbesser|variiere|variier|komponier|erstell)/.test(t));
 }
-function previousAssistant(provider,arr,lastUserIndex){
-  for(let i=lastUserIndex-1;i>=0;i--)if(roleOf(provider,arr[i])==='assistant')return{text:textOf(arr[i]),index:i};
+function isMusicalContext(text){
+  const t=String(text||'').toLowerCase();
+  if(/\[MCL-(?:OPENAI-)?VORSCHLAG:[a-z0-9]+\]/i.test(t))return false;
+  if(/(?:claude|die ki) hat keine textantwort geliefert|laufende anfrage.*abgebrochen/.test(t))return false;
+  const music=/(komponier|überarbeit|ueberarbeit|variation|variante|fassung|version|melodie|melodiestimme|stimme|begleitung|stück|stueck|komposition|arrangier|harmonisier|rhythm|phrasier|tonwahl|spannungsbogen)/.test(t);
+  const action=/(erstell|komponier|überarbeit|ueberarbeit|variier|schreib|mach|entwickel|arrangier|harmonisier|verbesser)/.test(t);
+  const offer=/(möchtest du|moechtest du|soll ich|kann ich|willst du|wenn du möchtest|wenn du willst|darf ich)[\s\S]{0,900}/.test(t);
+  const plan=/(um .*?(?:zu erstellen|zu komponieren)|damit ich .*?(?:komponieren|erstellen|überarbeiten|ueberarbeiten) kann|eine .*?(?:melodie|stimme|fassung).*?(?:erstellen|komponieren|überarbeiten|ueberarbeiten))/.test(t);
+  return music&&action&&(offer||plan);
+}
+function previousMusicalAssistant(provider,arr,lastUserIndex){
+  let seen=0;
+  for(let i=lastUserIndex-1;i>=0&&seen<10;i--){
+    if(roleOf(provider,arr[i])!=='assistant')continue;
+    seen++;
+    const text=textOf(arr[i]);
+    if(isMusicalContext(text))return{text,index:i};
+  }
   return null;
 }
 function replaceLastUser(provider,body,text){
@@ -90,12 +106,14 @@ window.fetch=async function(input,init={}){
   for(let i=arr.length-1;i>=0;i--)if(roleOf(provider,arr[i])==='user'){lastUser=i;break}
   if(lastUser<0)return innerFetch(input,init);
   const raw=textOf(arr[lastUser]);
-  if(OFFER_MARK.test(raw)||!isShortAffirmative(raw))return innerFetch(input,init);
-  const prev=previousAssistant(provider,arr,lastUser);
-  if(!prev||!isMusicalOffer(prev.text)||/\[MCL-(?:OPENAI-)?VORSCHLAG:[a-z0-9]+\]/i.test(prev.text))return innerFetch(input,init);
+  if(OFFER_MARK.test(raw))return innerFetch(input,init);
+  const affirmative=isShortAffirmative(raw),explicit=isExplicitContinuation(raw);
+  if(!affirmative&&!explicit)return innerFetch(input,init);
+  const prev=previousMusicalAssistant(provider,arr,lastUser);
+  if(!prev)return innerFetch(input,init);
 
-  const tail=raw.replace(/^\s*(?:ja\s*,?\s*bitte|ja|gern(?:e)?|okay|ok|mach(?:e)? das|bitte|los|genau|einverstanden|sehr gern(?:e)?)\s*[.!?]?\s*/i,'');
-  const expanded=`[MCL-DIALOG-OFFER-ACCEPTED]\nDer Nutzer bestätigt das unmittelbar vorherige Angebot, Musik zu erzeugen oder musikalisch zu überarbeiten. Führe dieses angebotene Vorhaben jetzt als Kompositionsauftrag aus. Nutze die dafür tatsächlich benötigten Quellen aus dem musikalischen Arbeitstisch; die aktuell ausgewählte Fassung ist bei einem Überarbeitungsangebot die primäre Referenz.\n\nANGENOMMENES ANGEBOT DER KI:\n${String(prev.text||'').replace(/\[MCL-(?:OPENAI-)?VORSCHLAG:[^\]]+\]/ig,'').slice(-5000)}${tail?`\n\nZUSÄTZLICHER NUTZERKONTEXT:\n${tail}`:''}`;
+  const tail=affirmative?raw.replace(/^\s*(?:ja\s*,?\s*bitte|ja|gern(?:e)?|okay|ok|mach(?:e)? das|bitte|los|genau|einverstanden|sehr gern(?:e)?)\s*[.!?]?\s*/i,''):raw;
+  const expanded=`[MCL-DIALOG-OFFER-ACCEPTED]\nDies ist ausdrücklich ein konkreter KOMPOSITIONS-/BEARBEITUNGSAUFTRAG, kein allgemeines Gespräch und keine bloße Analyse. Der Nutzer möchte das zuvor beschriebene musikalische Vorhaben jetzt tatsächlich als neue MIDI-Fassung ausführen lassen. Wähle aus dem musikalischen Arbeitstisch nur die dafür nötigen Quellen. Bei einer Überarbeitung ist die aktuell ausgewählte Fassung die primäre Referenz, sofern sie das benötigte Material bereits vollständig enthält. Fordere keine Notendaten an, die im Arbeitstisch bereits vorhanden sind.\n\nMUSIKALISCHER KONTEXT DER KI:\n${String(prev.text||'').replace(/\[MCL-(?:OPENAI-)?VORSCHLAG:[^\]]+\]/ig,'').slice(-6000)}${tail?`\n\nAKTUELLER NUTZERAUFTRAG:\n${tail}`:''}`;
   const firstBody=replaceLastUser(provider,body,expanded);
   const first=await innerFetch(input,{...init,body:JSON.stringify(firstBody)});
   if(!first.ok)return first;
