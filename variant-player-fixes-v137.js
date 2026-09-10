@@ -4,8 +4,6 @@ if(window.__mclVariantPlayerFixesV137)return;
 window.__mclVariantPlayerFixesV137=true;
 
 const CHAT_KEY='music-chat-lab.chats.v1';
-const ACTIVE_KEY='music-chat-lab.active-chat.v1';
-const el=id=>document.getElementById(id);
 
 function scoreFromText(text){
   let raw=String(text||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
@@ -41,35 +39,7 @@ function normalizeVariantTitles(){
   if(changed)try{localStorage.setItem(CHAT_KEY,JSON.stringify(chats))}catch(_){ }
 }
 
-function maxBeat(score){
-  let max=0;(score?.tr||[]).forEach(t=>(t.nt||[]).forEach(n=>{const st=Number(n?.[0])||0,d=Number(n?.[1])||0,g=n?.length>5?(Number(n[5])||.95):.95;max=Math.max(max,st+d*Math.max(.05,g))}));return max;
-}
-function fmt(sec){sec=Math.max(0,Math.floor(sec||0));return`${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`}
-function activeItem(){
-  const b=document.querySelector('.mcl-midi-slot.active');if(!b||!window.MCLMidiSlots)return null;
-  const slot=Number(b.dataset.slot)+1;return window.MCLMidiSlots.get?.([slot])?.[0]||null;
-}
-function isRunning(){
-  const s=String(el('mainMidiStatus')?.textContent||'');
-  return /Wiedergabe (?:läuft|fortgesetzt|wird vorbereitet)/i.test(s)&&!/Pausiert/i.test(s);
-}
-function handleSeek(e){
-  if(e.target?.id!=='mainMidiSeek')return;
-  const seek=e.target,value=Number(seek.value)||0,wasRunning=isRunning();
-  e.preventDefault();e.stopImmediatePropagation();
-  seek.value=String(value);
-  const item=activeItem();if(!item?.score)return;
-  const max=maxBeat(item.score),bpm=Math.max(20,Math.min(300,Number(item.score.bpm)||96)),beat=max*value/1000,total=max*60/bpm,pos=beat*60/bpm;
-  if(el('mainMidiTime'))el('mainMidiTime').textContent=`${fmt(pos)} / ${fmt(total)}`;
-  if(wasRunning){
-    el('mainMidiPlay')?.click();
-  }else if(el('mainMidiStatus')){
-    el('mainMidiStatus').textContent=`Position gewählt · ${fmt(pos)}. Mit ▶ starten.`;
-  }
-}
-
-document.addEventListener('change',handleSeek,true);
 normalizeVariantTitles();
 new MutationObserver(normalizeVariantTitles).observe(document.documentElement,{subtree:true,childList:true});
-window.MCLVariantPlayerFixesV137={version:'1.3.11',normalizeVariantTitles};
+window.MCLVariantPlayerFixesV137={version:'1.3.13',normalizeVariantTitles};
 })();
