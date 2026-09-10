@@ -1,9 +1,10 @@
 (() => {
-  // v1.1.32 — abort control plus Anthropic structured-output compatibility.
+  // v1.1.33 — abort control plus Anthropic Claude-5 output/thinking policy.
   const activeFetchControllers = new Set();
   const activeXhrs = new Set();
   const isProviderUrl = u => /api\.anthropic\.com\/v1\/messages|api\.openai\.com\/v1\/responses|generativelanguage\.googleapis\.com\/.*:generateContent/i.test(String(u || ''));
   const isAnthropicUrl = u => /api\.anthropic\.com\/v1\/messages/i.test(String(u || ''));
+  const isClaude5 = model => /^claude-(?:sonnet|opus)-5(?:$|-)/i.test(String(model || ''));
 
   function messageText(m) {
     if (typeof m?.content === 'string') return m.content;
@@ -11,7 +12,7 @@
     return '';
   }
 
-  function applyAnthropicStructuredOutputPolicy(url, init) {
+  function applyAnthropicOutputPolicy(url, init) {
     if (!isAnthropicUrl(url) || typeof init?.body !== 'string') return init;
     try {
       const body = JSON.parse(init.body);
@@ -19,21 +20,36 @@
       const lastUser = [...messages].reverse().find(m => m?.role === 'user');
       const prompt = messageText(lastUser).trim();
       const isFinalComposition = /^VERBINDLICHER TECHNISCHER MODUS:\s*(?:PATCH|REPLACE_SCORE|NEW_SCORE)/i.test(prompt);
-      if (!isFinalComposition) return init;
 
-      // Claude Sonnet 5 uses adaptive thinking by default. For the final machine-readable
-      // score/patch this can consume the entire max_tokens budget before any text is emitted.
-      // The musical decision has already been made in the approved proposal, so the final
-      // serialization step deliberately runs without thinking.
-      body.thinking = { type: 'disabled' };
-      delete body.output_config;
+      if (isFinalComposition) {
+        // The musical decisions already exist in the approved proposal. The final score/patch
+        // is a deterministic serialization task, so Claude 5 must not spend the output budget
+        // on adaptive thinking before emitting the machine-readable JSON.
+        body.thinking = { type: 'disabled' };
+        delete body.output_config;
 
-      // A patch contains only changed material. 12k visible tokens are already generous and
-      // avoid another runaway request while still allowing substantial multi-track edits.
-      if (/^VERBINDLICHER TECHNISCHER MODUS:\s*PATCH/i.test(prompt) && Number(body.max_tokens) > 12000) {
-        body.max_tokens = 12000;
+        // PATCH contains only changed material. 12k visible tokens are generous even for
+        // substantial additions, while preventing another runaway request.
+        if (/^VERBINDLICHER TECHNISCHER MODUS:\s*PATCH/i.test(prompt) && Number(body.max_tokens) > 12000) {
+          body.max_tokens = 12000;
+        }
+        return { ...init, body: JSON.stringify(body) };
       }
-      return { ...init, body: JSON.stringify(body) };
+
+      // app.js sends ordinary visible chat/analysis requests without a top-level system field.
+      // On Sonnet/Opus 5 adaptive thinking is on by default; the former 4096-token ceiling can
+      // therefore be exhausted by thinking alone. Keep thinking for musical judgment, but lower
+      // its effort and reserve enough total output budget for a visible answer.
+      const isVisibleChat = !body.system && isClaude5(body.model);
+      if (isVisibleChat) {
+        body.thinking = { type: 'adaptive' };
+        body.output_config = { ...(body.output_config || {}), effort: 'medium' };
+        const current = Number(body.max_tokens) || 4096;
+        body.max_tokens = Math.min(12000, Math.max(8192, current));
+        return { ...init, body: JSON.stringify(body) };
+      }
+
+      return init;
     } catch {
       return init;
     }
@@ -43,7 +59,7 @@
   window.fetch = async function(input, init = {}) {
     const url = typeof input === 'string' ? input : input?.url || '';
     if (!isProviderUrl(url)) return previousFetch(input, init);
-    const adjustedInit = applyAnthropicStructuredOutputPolicy(url, init);
+    const adjustedInit = applyAnthropicOutputPolicy(url, init);
     const controller = new AbortController();
     activeFetchControllers.add(controller);
     const originalSignal = adjustedInit.signal;
