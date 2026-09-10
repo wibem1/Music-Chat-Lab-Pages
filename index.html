@@ -106,18 +106,22 @@
 <script src="backup-manager.js?v=1.2.2"></script>
 <script>(()=>{document.getElementById('diagnosticDownloadButton')?.addEventListener('click',()=>window.MCLDownloadDiagnostic?.());const list=document.getElementById('chatList'),n=document.getElementById('newChatButton');if(list&&n&&list.children.length===0)n.click()})();</script>
 <script>
+// Emergency stabilization for v1.2.4: remove any previously installed Music Chat Lab
+// service worker and its caches. Do not reload automatically.
 if('serviceWorker' in navigator){
-  let reloading=false;
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    if(reloading)return;
-    reloading=true;
-    location.reload();
-  });
   window.addEventListener('load',async()=>{
     try{
-      const registration=await navigator.serviceWorker.register('./service-worker.js?v=1.2.4',{scope:'./',updateViaCache:'none'});
-      await registration.update();
-    }catch(error){console.warn('Service Worker update failed',error);}
+      const registrations=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations
+        .filter(r=>r.scope.includes('/Music-Chat-Lab-Pages/'))
+        .map(r=>r.unregister()));
+      if('caches' in window){
+        const names=await caches.keys();
+        await Promise.all(names
+          .filter(name=>name.startsWith('music-chat-lab-'))
+          .map(name=>caches.delete(name)));
+      }
+    }catch(error){console.warn('Service Worker cleanup failed',error);}
   });
 }
 </script>
