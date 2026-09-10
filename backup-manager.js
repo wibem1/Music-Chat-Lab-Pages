@@ -1,11 +1,11 @@
 (()=>{
 'use strict';
-if(window.__mclBackupManagerV1127)return;
-window.__mclBackupManagerV1127=true;
+if(window.__mclBackupManagerV1128)return;
+window.__mclBackupManagerV1128=true;
 
 const FORMAT='music-chat-lab-backup';
 const FORMAT_VERSION=1;
-const APP_VERSION='1.1.27';
+const APP_VERSION='1.1.28';
 const PREFIX='music-chat-lab.';
 const MIDI_DB='music-chat-lab-midi';
 const MIDI_STORE='workspace';
