@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const VERSION='1.1.23';
+const VERSION='1.1.24';
 const TABLET_BREAKPOINT=1180;
 const sidebar=document.getElementById('sidebar');
 const closeButton=document.getElementById('sidebarCloseButton');
@@ -8,6 +8,11 @@ const backdrop=document.getElementById('sidebarBackdrop');
 const infoButton=document.getElementById('infoButton');
 const infoDialog=document.getElementById('infoDialog');
 const infoClose=document.getElementById('infoCloseButton');
+function loadV124(){
+  if(window.__mclV124Loader)return;window.__mclV124Loader=true;
+  const s=document.createElement('script');s.src='v124-fixes.js?v=1.1.24';s.async=false;document.head.appendChild(s);
+}
+loadV124();
 function closeSidebar(){sidebar?.classList.remove('open');document.body.classList.remove('sidebar-open')}
 closeButton?.addEventListener('click',closeSidebar);
 backdrop?.addEventListener('click',closeSidebar);
