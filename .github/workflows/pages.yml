@@ -45,7 +45,7 @@ jobs:
           test -f "$RUNNER_TEMP/mcl-pages/music-file-processing.js"
           test -f "$RUNNER_TEMP/mcl-pages/clab-document-v1.js"
           test -f "$RUNNER_TEMP/mcl-pages/diagnostic-enhancer.js"
-          grep -Fq 'data-app-version>v1.1.20<' "$RUNNER_TEMP/mcl-pages/index.html"
+          grep -Eq 'data-app-version>v[0-9]+\.[0-9]+\.[0-9]+<' "$RUNNER_TEMP/mcl-pages/index.html"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
