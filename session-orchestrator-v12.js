@@ -3,7 +3,7 @@
 if(window.__mclSessionOrchestratorV12)return;
 window.__mclSessionOrchestratorV12=true;
 
-const VERSION='1.2.0';
+const VERSION='1.3.0';
 const MEMORY_KEY='music-chat-lab.session-memory.v2';
 const ACTIVE_CHAT_KEY='music-chat-lab.active-chat.v1';
 const RECENT_MESSAGES=8;
