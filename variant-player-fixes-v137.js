@@ -49,20 +49,27 @@ function activeItem(){
   const b=document.querySelector('.mcl-midi-slot.active');if(!b||!window.MCLMidiSlots)return null;
   const slot=Number(b.dataset.slot)+1;return window.MCLMidiSlots.get?.([slot])?.[0]||null;
 }
+function isRunning(){
+  const s=String(el('mainMidiStatus')?.textContent||'');
+  return /Wiedergabe (?:läuft|fortgesetzt|wird vorbereitet)/i.test(s)&&!/Pausiert/i.test(s);
+}
 function handleSeek(e){
   if(e.target?.id!=='mainMidiSeek')return;
-  const seek=e.target,value=Number(seek.value)||0;
+  const seek=e.target,value=Number(seek.value)||0,wasRunning=isRunning();
   e.preventDefault();e.stopImmediatePropagation();
-  el('mainMidiStop')?.click();
   seek.value=String(value);
   const item=activeItem();if(!item?.score)return;
   const max=maxBeat(item.score),bpm=Math.max(20,Math.min(300,Number(item.score.bpm)||96)),beat=max*value/1000,total=max*60/bpm,pos=beat*60/bpm;
   if(el('mainMidiTime'))el('mainMidiTime').textContent=`${fmt(pos)} / ${fmt(total)}`;
-  if(el('mainMidiStatus'))el('mainMidiStatus').textContent=`Position gewählt · ${fmt(pos)}. Mit ▶ starten.`;
+  if(wasRunning){
+    el('mainMidiPlay')?.click();
+  }else if(el('mainMidiStatus')){
+    el('mainMidiStatus').textContent=`Position gewählt · ${fmt(pos)}. Mit ▶ starten.`;
+  }
 }
 
 document.addEventListener('change',handleSeek,true);
 normalizeVariantTitles();
 new MutationObserver(normalizeVariantTitles).observe(document.documentElement,{subtree:true,childList:true});
-window.MCLVariantPlayerFixesV137={version:'1.3.7',normalizeVariantTitles};
+window.MCLVariantPlayerFixesV137={version:'1.3.11',normalizeVariantTitles};
 })();
