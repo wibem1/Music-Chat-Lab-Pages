@@ -55,6 +55,7 @@ function trackIndex(score,op){
   return -1;
 }
 function validTrack(t){return !!t&&typeof t==='object'&&Array.isArray(t.nt)}
+function patchTrack(op){return op?.track??op?.tr??null}
 function sortEvents(a){return (a||[]).slice().sort((x,y)=>(Number(x?.[0])||0)-(Number(y?.[0])||0))}
 function applyPatch(patch,sources){
   if(!patch||patch.mode!=='patch'||!Array.isArray(patch.ops))return null;
@@ -70,21 +71,24 @@ function applyPatch(patch,sources){
   for(const op of patch.ops){
     if(!op||typeof op.op!=='string')return null;
     if(op.op==='add_track'){
-      if(!validTrack(op.track))return null;
-      score.tr.push(clone(op.track));
+      const tr=patchTrack(op);
+      if(!validTrack(tr))return null;
+      score.tr.push(clone(tr));
       continue;
     }
     if(op.op==='insert_track'){
-      if(!validTrack(op.track))return null;
+      const tr=patchTrack(op);
+      if(!validTrack(tr))return null;
       const at=Math.max(0,Math.min(score.tr.length,Math.trunc(Number(op.index)||0)));
-      score.tr.splice(at,0,clone(op.track));
+      score.tr.splice(at,0,clone(tr));
       continue;
     }
     const ix=trackIndex(score,op);
     if(ix<0||ix>=score.tr.length)return null;
     if(op.op==='replace_track'){
-      if(!validTrack(op.track))return null;
-      score.tr[ix]=clone(op.track);
+      const tr=patchTrack(op);
+      if(!validTrack(tr))return null;
+      score.tr[ix]=clone(tr);
       continue;
     }
     if(op.op==='delete_track'){
