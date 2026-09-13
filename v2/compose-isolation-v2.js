@@ -1,6 +1,9 @@
 (()=>{
 'use strict';
 if(window.__mclComposeIsolationV2)return;window.__mclComposeIsolationV2=true;
+/* v2 owns composition-state/CLAB semantics; prevent the legacy capture-phase saver
+   from turning a finished-score summary into a supposed pre-composition concept. */
+window.__mclCompositionStateFixV119=true;
 const VERSION='2.0.0-alpha.3';
 const sessionFetch=window.fetch.bind(window);
 const minimalFetch=window.__MCL_MINIMAL_FETCH;
@@ -48,5 +51,15 @@ window.fetch=async function(input,init={}){
  const r=await minimalFetch(input,{...init,body:JSON.stringify(minimalBody(provider,body,user))});
  if(!r.ok)return r;let data;try{data=await r.clone().json()}catch{return r}const internal=toInternal(parseJson(responseText(provider,data)));if(!internal)return r;return jsonResponse(replaceResponseText(provider,data,JSON.stringify(internal)),r);
 };
+function finishAlpha3Ui(){
+ document.title='MusicChatLab 2.0 Alpha 3';
+ const hidden=document.querySelector('[data-app-version]');if(hidden)hidden.textContent='v2.0.0-alpha.3';
+ const sub=document.querySelector('.brand-subtitle');if(sub)sub.textContent='Version 2.0 Alpha 3';
+ const badge=document.querySelector('.version-badge');if(badge)badge.textContent='v2.0 α3';
+ const about=document.querySelector('.about-version span');if(about)about.textContent='v2.0.0 Alpha 3';
+ const meta=document.querySelector('.about-meta');if(meta)meta.textContent='Exakter Minimal-Composer-Aufruf für Neukomposition · Chat-Gedächtnis nur im Chat/Bearbeitungsweg · Fable 5.1 · Kostenkontrolle 2.0';
+ if(!window.__mclClabSaveV2){const s=document.createElement('script');s.src='clab-save-v2.js?v=2.0.0a3';document.head.appendChild(s)}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',finishAlpha3Ui,{once:true});else finishAlpha3Ui();
 window.MCLComposeIsolationV2={version:VERSION};
 })();
