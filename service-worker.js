@@ -1,17 +1,17 @@
-const CACHE_NAME = "music-chat-lab-v1-3-13";
+const CACHE_NAME = "music-chat-lab-v2-0-alpha1";
 const APP_SHELL = [
   "./","./index.html",
-  "./styles.css?v=1.0.20","./ui-fixes.css?v=1.1.18","./explicit-mode-v133.css?v=1.3.5","./composition-idea-field-v1312.css?v=1.3.12","./app.js?v=1.1.13","./composition-state-fix.js?v=1.3.12","./concept-display-v139.js?v=1.3.12","./usage-costs.js?v=1.1.18",
+  "./styles.css?v=1.0.20","./ui-fixes.css?v=1.1.18","./explicit-mode-v133.css?v=1.3.5","./composition-idea-field-v1312.css?v=1.3.12","./app.js?v=2.0.0a1","./model-extension-v2.js?v=2.0.0a1","./composition-state-fix.js?v=1.3.12","./concept-display-v139.js?v=1.3.12","./cost-rates-v2.js?v=2.0.0a1","./cost-control-v2.js?v=2.0.0a1",
   "./music-file-processing.js?v=1.0.20","./download-compat.js?v=1.0.20",
-  "./api-usage.js?v=1.1.16","./composition-engine14.js?v=1.1.5","./request-control.js?v=1.1.35","./explicit-mode-v134.js?v=1.3.12","./session-orchestrator-v132.js?v=1.3.2","./variant-player-fixes-v137.js?v=1.3.13",
+  "./api-usage.js?v=1.1.16","./composition-engine14.js?v=1.1.5","./request-control.js?v=1.1.35","./explicit-mode-v2.js?v=2.0.0a1","./session-orchestrator-v132.js?v=1.3.2","./variant-player-fixes-v137.js?v=1.3.13",
   "./midi-player.js?v=1.3.5","./midi-stop-reset.js?v=1.0.20",
   "./midi-slot-restore.js?v=1.0.20","./midi-input-sync.js?v=1.1.10",
-  "./midi-playback-scheduler.js?v=1.0.22","./midi-context.js?v=1.1.20",
+  "./midi-playback-scheduler.js?v=1.0.23","./midi-context.js?v=1.1.20",
   "./clab-document-v1.js?v=1.3.12","./composition-idea-field-v1312.js?v=1.3.12","./clab-concept-v138.js?v=1.3.10","./clab-assignment-fix.js?v=1.1.23",
   "./chat-delete.js?v=1.0.20","./chat-titles.js?v=1.0.20",
-  "./midi-memory.js?v=1.1.8","./midi-slot-delete.js?v=1.1.12",
+  "./midi-memory.js?v=1.1.8","./midi-slot-delete.js?v=1.0.20",
   "./midi-export.js?v=1.0.20","./backup-manager.js?v=1.1.31","./ui-enhancements.js?v=1.1.31","./diagnostic-enhancer.js?v=1.1.31",
-  "./manifest.webmanifest?v=1.0.20","./icon.svg?v=1.0.20"
+  "./manifest.webmanifest?v=2.0.0a1","./icon.svg?v=1.0.20"
 ];
 self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL)));self.skipWaiting();});
 self.addEventListener("activate",event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)))));self.clients.claim();});
