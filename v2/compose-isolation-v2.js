@@ -1,17 +1,42 @@
 (()=>{
 'use strict';
 if(window.__mclComposeIsolationV2)return;window.__mclComposeIsolationV2=true;
-const VERSION='2.0.0-alpha.2';
+const VERSION='2.0.0-alpha.3';
 const sessionFetch=window.fetch.bind(window);
 const minimalFetch=window.__MCL_MINIMAL_FETCH;
 if(!minimalFetch){console.warn('MusicChatLab 2.0: minimal fetch path missing.');return;}
-const TECH=`TECHNISCHER AUSGABEVERTRAG:\nAntworte ausschließlich mit genau einem validen JSON-Objekt für eine MIDI-Komposition. Keine Einleitung, kein Kommentar, kein Markdown.\nFormat:\n{\"ti\":\"Titel\",\"bpm\":96,\"ts\":{\"n\":4,\"d\":4},\"k\":\"C major\",\"sm\":\"Kurze Beschreibung\",\"tr\":[{\"nm\":\"Piano\",\"ch\":0,\"pg\":0,\"nt\":[[0,1,60,80,0,0.95]],\"ct\":[]}]}\nnt=[StartBeat,Dauer,Pitch,Velocity,Staff,Gate]. ct=[Beat,CC,Wert]. Verwende gültige MIDI-Pitches 0-127, Velocity 1-127 und nichtnegative Beat-Positionen.\nDieser Vertrag enthält keine musikalischen Vorgaben zu Stil, Harmonik, Melodik, Rhythmik, Form, Artikulation oder kompositorischer Qualität.`;
+const TECH=`TECHNISCHE AUSGABEANFORDERUNG – KEINE MUSIKALISCHEN ZUSATZREGELN:
+Antworte ausschließlich mit validem JSON, ohne Markdown und ohne Text außerhalb des JSON.
+Die Partitur steht entweder direkt im Wurzelobjekt oder im Feld "score".
+Partiturformat:
+{
+  "title": "optional",
+  "bpm": Zahl,
+  "timeSignature": [Zaehler, Nenner],
+  "tracks": [
+    {
+      "name": "Instrument",
+      "program": 0-127,
+      "channel": 0-15,
+      "notes": [[StartBeat, DauerInBeats, MIDIPitch, Velocity], ...]
+    }
+  ]
+}
+Weitere Textfelder, die der Benutzer in seinem Auftrag ausdrücklich verlangt, dürfen zusätzlich im JSON stehen.
+StartBeat und DauerInBeats dürfen Dezimalzahlen sein. MIDI-Pitch 0-127, Velocity 1-127.
+Das technische Format macht keinerlei Vorgaben zu Stil, Harmonik, Melodik, Rhythmik, Form, Artikulation oder musikalischer Qualität.`;
 function providerFor(url){const u=String(url||'');if(u.includes('api.anthropic.com/v1/messages'))return'anthropic';if(u.includes('api.openai.com/v1/responses'))return'openai';if(u.includes('generativelanguage.googleapis.com/')&&u.includes(':generateContent'))return'google';return null}
 function textOf(x){if(typeof x==='string')return x;if(Array.isArray(x))return x.map(p=>p?.text||p?.input_text||p?.output_text||'').join('');return''}
 function lastUser(provider,b){if(provider==='anthropic'){const a=Array.isArray(b.messages)?b.messages:[];for(let i=a.length-1;i>=0;i--)if(a[i]?.role==='user')return textOf(a[i].content)}if(provider==='openai'){const a=Array.isArray(b.input)?b.input:[];for(let i=a.length-1;i>=0;i--)if(a[i]?.role==='user')return textOf(a[i].content)}if(provider==='google'){const a=Array.isArray(b.contents)?b.contents:[];for(let i=a.length-1;i>=0;i--)if(a[i]?.role==='user')return textOf(a[i].parts)}return''}
 function stripContext(s){return String(s||'').replace(/\n*--- MUSIKALISCHER ARBEITSTISCH(?: \(KATALOG\))? ---[\s\S]*?--- ENDE MUSIKALISCHER ARBEITSTISCH(?: \(KATALOG\))? ---\n*/g,'\n').replace(/\n*--- AUSGEWÄHLTES MUSIKMATERIAL ---[\s\S]*?--- ENDE AUSGEWÄHLTES MUSIKMATERIAL ---\n*/g,'\n').replace(/\n*--- AUTOMATISCH BEREITGESTELLTES MUSIKMATERIAL ---[\s\S]*?--- ENDE AUTOMATISCH BEREITGESTELLTES MUSIKMATERIAL ---\n*/g,'\n').replace(/\n{3,}/g,'\n\n').trim()}
 function refersToExisting(s){return /\b(?:Speicher(?:platz)?\s*\d+|dieses Stück|diese Komposition|aktuelle Komposition|davon|daraus|vorhandene(?:s|n)? Stück)\b/i.test(String(s||''))}
-function minimalBody(provider,b,user){if(provider==='anthropic')return{model:b.model,max_tokens:Math.max(12000,Number(b.max_tokens)||0),system:TECH,messages:[{role:'user',content:user}]};if(provider==='openai')return{model:b.model,input:[{role:'system',content:TECH},{role:'user',content:user}],store:false};const g={...(b.generationConfig||{}),maxOutputTokens:Math.max(12000,Number(b.generationConfig?.maxOutputTokens)||0),responseMimeType:'application/json'};return{systemInstruction:{parts:[{text:TECH}]},contents:[{role:'user',parts:[{text:user}]}],generationConfig:g}}
+function miniPrompt(user){return`${user}\n\n${TECH}`}
+function minimalBody(provider,b,user){const prompt=miniPrompt(user);if(provider==='anthropic')return{model:b.model,max_tokens:32768,messages:[{role:'user',content:prompt}]};if(provider==='openai')return{model:b.model,input:[{role:'user',content:[{type:'input_text',text:prompt}]}],store:false};return{contents:[{role:'user',parts:[{text:prompt}]}]}}
+function responseText(provider,d){if(provider==='anthropic')return(d?.content||[]).filter(x=>x?.type==='text').map(x=>x.text||'').join('').trim();if(provider==='openai')return(d?.output||[]).flatMap(x=>x?.content||[]).filter(x=>x?.type==='output_text'||x?.type==='text').map(x=>x?.text||'').join('\n').trim()||String(d?.output_text||'').trim();return(d?.candidates?.[0]?.content?.parts||[]).map(x=>x?.text||'').join('\n').trim()}
+function parseJson(text){let s=String(text||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a<0||b<a)return null;try{return JSON.parse(s.slice(a,b+1))}catch{return null}}
+function toInternal(x){if(!x||typeof x!=='object')return null;if(Array.isArray(x.tr))return x;const root=(x.score&&typeof x.score==='object')?x.score:x;if(!Array.isArray(root.tracks))return null;const ts=Array.isArray(root.timeSignature)?root.timeSignature:[4,4],out={ti:String(root.title||x.title||'KI-Komposition'),bpm:Number(root.bpm)||96,ts:{n:Number(ts[0])||4,d:Number(ts[1])||4},k:String(root.key||root.keySignature||''),tr:root.tracks.map((t,i)=>({nm:String(t?.name||`Spur ${i+1}`),ch:Math.max(0,Math.min(15,Number(t?.channel)||0)),pg:Math.max(0,Math.min(127,Number(t?.program)||0)),nt:(Array.isArray(t?.notes)?t.notes:[]).filter(n=>Array.isArray(n)&&n.length>=4).map(n=>[Number(n[0])||0,Number(n[1])||0,Number(n[2])||0,Number(n[3])||80,0,1]),ct:[]}))};const idea=x.kompositionsidee||x.idea||root.kompositionsidee||root.idea;if(idea)out.idea=String(idea);const desc=root.description||root.summary;if(desc)out.sm=String(desc);return out}
+function replaceResponseText(provider,d,text){const x=JSON.parse(JSON.stringify(d||{}));if(provider==='anthropic'){let done=false;x.content=(x.content||[]).map(p=>{if(!done&&p?.type==='text'){done=true;return{...p,text}}return p});if(!done)x.content=[...(x.content||[]),{type:'text',text}]}else if(provider==='openai'){let done=false;x.output=(x.output||[]).map(o=>({...o,content:(o.content||[]).map(p=>{if(!done&&(p?.type==='output_text'||p?.type==='text')){done=true;return{...p,text}}return p})}));if(typeof x.output_text==='string')x.output_text=text}else{if(!x.candidates?.length)x.candidates=[{}];x.candidates[0]={...(x.candidates[0]||{}),content:{...(x.candidates[0]?.content||{}),role:'model',parts:[{text}]}}}return x}
+function jsonResponse(data,r){const h=new Headers(r.headers||{});h.set('content-type','application/json');return new Response(JSON.stringify(data),{status:r.status,statusText:r.statusText,headers:h})}
 window.fetch=async function(input,init={}){
  const url=typeof input==='string'?input:input?.url||'',provider=providerFor(url);
  if(!provider||window.MCLRequestMode!=='compose'||typeof init.body!=='string')return sessionFetch(input,init);
@@ -19,8 +44,9 @@ window.fetch=async function(input,init={}){
  const raw=lastUser(provider,body),hasScore=/\[MCL-ENGINE14-SCORE\b/i.test(raw),user=stripContext(raw);
  if(hasScore||refersToExisting(user))return sessionFetch(input,init);
  if(!user)return sessionFetch(input,init);
- const note=document.getElementById('composerNote');if(note)note.textContent='Isolierte Neukomposition · ohne Chat-Gedächtnis, Arbeitstisch oder Vorab-Idee.';
- return minimalFetch(input,{...init,body:JSON.stringify(minimalBody(provider,body,user))});
+ const note=document.getElementById('composerNote');if(note)note.textContent='Isolierte Neukomposition · exakt derselbe Modellauftrag wie im Minimal Composer.';
+ const r=await minimalFetch(input,{...init,body:JSON.stringify(minimalBody(provider,body,user))});
+ if(!r.ok)return r;let data;try{data=await r.clone().json()}catch{return r}const internal=toInternal(parseJson(responseText(provider,data)));if(!internal)return r;return jsonResponse(replaceResponseText(provider,data,JSON.stringify(internal)),r);
 };
 window.MCLComposeIsolationV2={version:VERSION};
 })();
