@@ -1,10 +1,8 @@
 (()=>{
 'use strict';
 if(window.__mclComposeIsolationV2)return;window.__mclComposeIsolationV2=true;
-/* v2 owns composition-state/CLAB semantics; prevent the legacy capture-phase saver
-   from turning a finished-score summary into a supposed pre-composition concept. */
 window.__mclCompositionStateFixV119=true;
-const VERSION='2.0.0-alpha.4';
+const VERSION='2.0.0-alpha.5';
 const sessionFetch=window.fetch.bind(window);
 const minimalFetch=window.__MCL_MINIMAL_FETCH;
 if(!minimalFetch){console.warn('MusicChatLab 2.0: minimal fetch path missing.');return;}
@@ -27,6 +25,7 @@ Partiturformat:
 }
 Weitere Textfelder, die der Benutzer in seinem Auftrag ausdrücklich verlangt, dürfen zusätzlich im JSON stehen.
 StartBeat und DauerInBeats dürfen Dezimalzahlen sein. MIDI-Pitch 0-127, Velocity 1-127.
+Der musikalische Benutzerauftrag ist verbindlich. Wenn der Auftrag eine Besetzung nennt, verwende genau diese Besetzung und füge keine nicht verlangten Instrumente hinzu, sofern der Benutzer zusätzliche Instrumente nicht ausdrücklich erlaubt.
 Das technische Format macht keinerlei Vorgaben zu Stil, Harmonik, Melodik, Rhythmik, Form, Artikulation oder musikalischer Qualität.`;
 function providerFor(url){const u=String(url||'');if(u.includes('api.anthropic.com/v1/messages'))return'anthropic';if(u.includes('api.openai.com/v1/responses'))return'openai';if(u.includes('generativelanguage.googleapis.com/')&&u.includes(':generateContent'))return'google';return null}
 function textOf(x){if(typeof x==='string')return x;if(Array.isArray(x))return x.map(p=>p?.text||p?.input_text||p?.output_text||'').join('');return''}
@@ -54,7 +53,7 @@ window.fetch=async function(input,init={}){
  const raw=lastUser(provider,body),hasScore=/\[MCL-ENGINE14-SCORE\b/i.test(raw),user=stripContext(raw);
  if(hasScore||refersToExisting(user))return sessionFetch(input,init);
  if(!user)return sessionFetch(input,init);
- const note=document.getElementById('composerNote');if(note)note.textContent='Isolierte Neukomposition · exakt derselbe Modellauftrag wie im Minimal Composer.';
+ const note=document.getElementById('composerNote');if(note)note.textContent='Isolierte Neukomposition · Minimal-Composer-Aufruf · Auftragstreue aktiv.';
  const r=await minimalFetch(input,{...init,body:JSON.stringify(minimalBody(provider,body,user))});
  if(!r.ok)return r;let data;try{data=await r.clone().json()}catch{return r}const finished=parseJson(responseText(provider,data)),internal=toInternal(finished);if(!internal)return r;
  const postIdea=await generatePostIdea(provider,input,init,body,user,finished);if(postIdea)internal.idea=postIdea;
@@ -62,16 +61,16 @@ window.fetch=async function(input,init={}){
  if(note)note.textContent=postIdea?'Komposition erzeugt · Kompositionsidee nachträglich ergänzt.':'Komposition erzeugt · nachträgliche Idee konnte nicht erzeugt werden.';
  return jsonResponse(replaceResponseText(provider,data,JSON.stringify(internal)),r);
 };
-function finishAlpha4Ui(){
- document.title='MusicChatLab 2.0 Alpha 4';
- const hidden=document.querySelector('[data-app-version]');if(hidden)hidden.textContent='v2.0.0-alpha.4';
- const sub=document.querySelector('.brand-subtitle');if(sub)sub.textContent='Version 2.0 Alpha 4';
- const badge=document.querySelector('.version-badge');if(badge)badge.textContent='v2.0 α4';
- const about=document.querySelector('.about-version span');if(about)about.textContent='v2.0.0 Alpha 4';
- const meta=document.querySelector('.about-meta');if(meta)meta.textContent='Exakter Minimal-Composer-Aufruf · Kompositionsidee erst nach fertiger Komposition · Chat-Gedächtnis nur im Chat/Bearbeitungsweg · Fable 5.1 · Kostenkontrolle 2.0';
+function finishAlpha5Ui(){
+ document.title='MusicChatLab 2.0 Alpha 5';
+ const hidden=document.querySelector('[data-app-version]');if(hidden)hidden.textContent='v2.0.0-alpha.5';
+ const sub=document.querySelector('.brand-subtitle');if(sub)sub.textContent='Version 2.0 Alpha 5';
+ const badge=document.querySelector('.version-badge');if(badge)badge.textContent='v2.0 α5';
+ const about=document.querySelector('.about-version span');if(about)about.textContent='v2.0.0 Alpha 5';
+ const meta=document.querySelector('.about-meta');if(meta)meta.textContent='Minimal-Composer-Aufruf · verbindliche Benutzerbesetzung · Kompositionsidee erst nach fertiger Komposition · Chat-Gedächtnis nur im Chat/Bearbeitungsweg · Fable 5.1 · Kostenkontrolle 2.0';
  installIdeaDisplay();
- if(!window.__mclClabSaveV2){const s=document.createElement('script');s.src='clab-save-v2.js?v=2.0.0a4';document.head.appendChild(s)}
+ if(!window.__mclClabSaveV2){const s=document.createElement('script');s.src='clab-save-v2.js?v=2.0.0a5';document.head.appendChild(s)}
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',finishAlpha4Ui,{once:true});else finishAlpha4Ui();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',finishAlpha5Ui,{once:true});else finishAlpha5Ui();
 window.MCLComposeIsolationV2={version:VERSION};
 })();
