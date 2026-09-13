@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f5f5f5">
-  <title>MusicChatLab</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.20">
+  <title>MusicChatLab 2.0</title>
+  <link rel="manifest" href="manifest.webmanifest?v=2.0.0a1">
   <link rel="icon" href="icon.svg?v=1.0.20" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css?v=1.0.20">
   <link rel="stylesheet" href="ui-fixes.css?v=1.1.18">
@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="composition-idea-field-v1312.css?v=1.3.12">
 </head>
 <body>
-<span hidden data-app-version>v1.3.14</span>
+<span hidden data-app-version>v2.0.0-alpha.1</span>
 <div class="app-shell">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -37,7 +37,7 @@
   <main class="main-panel">
     <header class="topbar">
       <button class="icon-button mobile-only" id="menuButton" aria-label="Verlauf öffnen">☰</button>
-      <span class="version-badge mobile-only">v1.3.14</span>
+      <span class="version-badge mobile-only">v2.0 α</span>
       <div class="current-chat-title" id="currentChatTitle">Neuer Chat</div>
       <div class="provider-controls">
         <select id="providerSelect" aria-label="KI-Anbieter"><option value="anthropic">Claude</option><option value="openai">OpenAI</option><option value="google">Gemini</option></select>
@@ -45,7 +45,7 @@
         <button class="icon-button" id="topSettingsButton" aria-label="API-Einstellungen" title="API-Einstellungen">⚙</button>
       </div>
     </header>
-    <section class="messages" id="messages"><div class="welcome" id="welcome"><div class="welcome-logo">♪</div><h1>MusicChatLab</h1><p>Chatte mit Claude, Gemini und OpenAI, wechsle im laufenden Gespräch den Anbieter und hänge Musik- oder Dokumentdateien an.</p></div></section>
+    <section class="messages" id="messages"><div class="welcome" id="welcome"><div class="welcome-logo">♪</div><h1>MusicChatLab 2.0</h1><p>Chatte mit Claude, Gemini und OpenAI, entwickle musikalische Ideen und setze sie bei Bedarf direkt als MIDI um.</p></div></section>
     <section class="composer">
       <div class="attachments" id="attachments"></div>
       <div class="mcl-midi-slots" id="midiSlots" aria-label="MIDI-Speicherplätze">
@@ -61,19 +61,19 @@
         <span class="mcl-player-status" id="mainMidiStatus">GM-Player bereit.</span>
       </div>
       <div class="composition-idea-box">
-        <label for="compositionIdeaInput">Kompositionsidee</label>
-        <textarea id="compositionIdeaInput" rows="3" placeholder="Musikalische Idee / aktueller Kompositionsauftrag …"></textarea>
+        <label for="compositionIdeaInput">Kompositionsidee <span style="font-weight:400;opacity:.7">(optional)</span></label>
+        <textarea id="compositionIdeaInput" rows="3" placeholder="Optionaler musikalischer Gedanke oder Arbeitsauftrag …"></textarea>
       </div>
       <div class="composer-box">
         <label class="attach-button" title="Datei anhängen">＋<input id="fileInput" type="file" multiple hidden></label>
-        <textarea id="messageInput" rows="1" placeholder="Nachricht schreiben …"></textarea>
+        <textarea id="messageInput" rows="1" placeholder="Nachricht oder Kompositionsauftrag schreiben …"></textarea>
         <div class="composer-actions">
           <button type="button" class="mode-send-button chat-action" id="sendButton" aria-label="Als Chat senden">Chat</button>
           <button type="button" class="mode-send-button compose-action" id="composeButton" aria-label="Kompositionsauftrag ausführen">Komponiere</button>
         </div>
       </div>
       <div class="composer-note" id="composerNote"></div>
-      <div class="cost-control" id="costControl">Kosten dieses Chats: ≈ 0,000 US$</div>
+      <div class="cost-control" id="costControl">Kosten werden geladen …</div>
     </section>
   </main>
 </div>
@@ -87,14 +87,14 @@
     <div class="dialog-actions"><button type="button" class="secondary-button" id="diagnosticDownloadButton">Diagnose-Datei speichern</button><button type="button" class="secondary-button" id="clearKeysButton">Schlüssel löschen</button><button type="submit" class="primary-button">Speichern</button></div>
   </form>
 </dialog>
-<dialog class="about-dialog" id="infoDialog"><div class="about-card"><h2>MusicChatLab</h2><p>KI-Chat und musikalischer Arbeitstisch für Analyse, Komposition und Weiterentwicklung von MIDI- und MusicXML-Material.</p><p class="about-version">Version <span>v1.3.14</span></p><p class="about-meta">Engine Build 14 · CLAB v1 · Expliziter Chat-/Komponiermodus</p><div class="about-actions"><button type="button" class="primary-button" id="infoCloseButton">Schließen</button></div></div></dialog>
+<dialog class="about-dialog" id="infoDialog"><div class="about-card"><h2>MusicChatLab 2.0</h2><p>KI-Chat und musikalischer Arbeitstisch für Analyse, Komposition und Weiterentwicklung von MIDI- und MusicXML-Material.</p><p class="about-version">Version <span>v2.0.0 Alpha 1</span></p><p class="about-meta">Direkter Komponiermodus · CLAB v1 · Kostenkontrolle 2.0</p><div class="about-actions"><button type="button" class="primary-button" id="infoCloseButton">Schließen</button></div></div></dialog>
 
 <script src="music-file-processing.js?v=1.0.20"></script>
 <script src="download-compat.js?v=1.0.20"></script>
 <script src="api-usage.js?v=1.1.16"></script>
 <script src="composition-engine14.js?v=1.1.5"></script>
 <script src="request-control.js?v=1.1.35"></script>
-<script src="explicit-mode-v134.js?v=1.3.12"></script>
+<script src="explicit-mode-v2.js?v=2.0.0a1"></script>
 <script src="session-orchestrator-v132.js?v=1.3.2"></script>
 <script src="variant-player-fixes-v137.js?v=1.3.13"></script>
 <script src="https://cdn.jsdelivr.net/gh/wibem1/Composer-Lab@main/soundfont-player.js"></script>
@@ -108,10 +108,12 @@
 <script src="composition-idea-field-v1312.js?v=1.3.12"></script>
 <script src="clab-concept-v138.js?v=1.3.10"></script>
 <script src="clab-assignment-fix.js?v=1.1.23"></script>
-<script src="app.js?v=1.1.13"></script>
+<script src="app.js?v=2.0.0a1"></script>
+<script src="model-extension-v2.js?v=2.0.0a1"></script>
 <script src="composition-state-fix.js?v=1.3.12"></script>
 <script src="concept-display-v139.js?v=1.3.12"></script>
-<script src="usage-costs.js?v=1.1.18"></script>
+<script src="cost-rates-v2.js?v=2.0.0a1"></script>
+<script src="cost-control-v2.js?v=2.0.0a1"></script>
 <script src="chat-delete.js?v=1.0.20"></script>
 <script src="chat-titles.js?v=1.0.20"></script>
 <script src="midi-memory.js?v=1.1.8"></script>
